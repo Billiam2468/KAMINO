@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+
+# Measurement results and review files hold patient data -- never commit them
+results/
+kneemeasure_review.json
+
+# Packaging output
+build/
+dist/
+*.egg-info/

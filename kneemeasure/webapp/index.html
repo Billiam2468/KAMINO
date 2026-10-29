@@ -1,0 +1,1246 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KAMINO</title>
+<style>
+  :root {
+    --bg: #f6f6f4; --panel: #ffffff; --line: #e2e1dc; --text: #1b1b19; --muted: #5d5c57;
+    --viewer: #121212; --accent: #2a78d6; --ok: #1f8a4c; --warn: #b26b00; --bad: #c43c3c;
+    --auto: #ff9b2f; --mine: #3ddc84;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; font: 14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color: var(--text);
+         background: var(--bg); height: 100vh; display: flex; flex-direction: column; }
+  header { display: flex; align-items: center; gap: 16px; padding: 10px 16px; background: var(--panel);
+           border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 16px; margin: 0; font-weight: 600; }
+  header .spacer { flex: 1; }
+  header input { padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; width: 140px; }
+  .progress { color: var(--muted); font-size: 13px; white-space: nowrap; }
+  #update { color: var(--accent); font-size: 13px; white-space: nowrap; }
+  #rebuild { white-space: nowrap; }
+  button { font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line);
+           background: var(--panel); color: var(--text); cursor: pointer; }
+  button:hover:not(:disabled) { border-color: #b9b8b1; }
+  button:disabled { opacity: .45; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.ok { background: var(--ok); border-color: var(--ok); color: #fff; }
+  button.bad { border-color: var(--bad); color: var(--bad); }
+  main { flex: 1; display: grid; grid-template-columns: 210px 1fr 330px; min-height: 0; }
+  #list { border-right: 1px solid var(--line); overflow-y: auto; background: var(--panel); }
+  #list .item { padding: 8px 12px; border-bottom: 1px solid var(--line); cursor: pointer; display: flex;
+                justify-content: space-between; align-items: center; gap: 6px; }
+  #list .item.active { background: #e8f0fb; }
+  #list .code { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .badge { font-size: 11px; padding: 1px 7px; border-radius: 10px; white-space: nowrap; border: 1px solid; }
+  .b-unreviewed { color: var(--muted); border-color: var(--line); }
+  .b-flag { color: var(--warn); border-color: var(--warn); }
+  .b-accepted { color: var(--ok); border-color: var(--ok); }
+  .b-replaced { color: var(--accent); border-color: var(--accent); }
+  .b-not_in_view { color: var(--bad); border-color: var(--bad); }
+  .b-misaligned { color: var(--warn); border-color: var(--warn); }
+  #viewers { display: grid; grid-template-columns: 1.6fr 1fr; gap: 10px; padding: 10px; min-height: 0; }
+  .viewer { background: var(--viewer); border-radius: 8px; position: relative; display: flex;
+            flex-direction: column; min-height: 0; overflow: hidden; }
+  .viewer canvas { flex: 1; width: 100%; min-height: 0; display: block; cursor: crosshair; }
+  .viewer .cap { color: #cfcfcf; font-size: 12px; padding: 6px 10px; display: flex; justify-content: space-between; }
+  .viewer .slider { padding: 4px 10px 10px; }
+  .zoombtns { margin-left: 8px; display: inline-flex; gap: 2px; }
+  .zoombtns button { background: #2a2a2a; color: #ddd; border-color: #444; padding: 0 8px; font-size: 12px; line-height: 18px; }
+  .zoombtns button.on { background: #3a5f8f; border-color: #5b84b8; color: #fff; }
+  #axial.panning { cursor: grabbing; }
+  .viewer input[type=range] { width: 100%; }
+  aside { border-left: 1px solid var(--line); background: var(--panel); padding: 14px; overflow-y: auto;
+          display: flex; flex-direction: column; gap: 14px; }
+  aside h2 { font-size: 15px; margin: 0; }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-size: 13px; }
+  .kv dt { color: var(--muted); }
+  .kv dd { margin: 0; font-variant-numeric: tabular-nums; }
+  .alert { padding: 8px 10px; border-radius: 6px; font-size: 13px; }
+  .alert.warn { background: #fff4e0; color: #6b4300; }
+  .alert.info { background: #eef4fc; color: #1d4f8a; }
+  .actions { display: flex; flex-direction: column; gap: 8px; }
+  .actions button { text-align: left; }
+  kbd { font: 11px ui-monospace, monospace; border: 1px solid var(--line); border-bottom-width: 2px;
+        border-radius: 4px; padding: 0 5px; color: var(--muted); background: #fff; }
+  .actions button { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .actions button kbd { background: rgba(255,255,255,.85); color: #333; border-color: rgba(0,0,0,.15); }
+  .help { line-height: 1.9; }
+  textarea { width: 100%; min-height: 54px; border: 1px solid var(--line); border-radius: 6px; padding: 6px; font: inherit; }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 12px; color: var(--muted); }
+  .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+  .muted { color: var(--muted); font-size: 12px; }
+  nav.tabs { display: flex; gap: 4px; }
+  nav.tabs a { padding: 6px 12px; border-radius: 6px; color: var(--muted); text-decoration: none; white-space: nowrap; }
+  nav.tabs a.on { background: #e8f0fb; color: var(--accent); font-weight: 600; }
+  nav.tabs a.off { pointer-events: none; opacity: .4; }
+  nav.tabs { align-items: center; }
+  #tabSetup { color: var(--text); font-weight: 600; margin-right: 6px; }
+  #tabSetup.on { color: var(--accent); }
+  .tabgroup { display: inline-flex; align-items: center; gap: 2px; padding: 2px 8px 2px 14px;
+              border-left: 1px solid var(--line); white-space: nowrap; }
+  .tabgroup b { font-weight: 600; color: var(--text); margin-right: 6px; }
+  .tabgroup.cur b { color: var(--accent); }
+  .tabgroup a { padding: 3px 9px !important; font-size: 13px; }
+  .view { flex: 1; min-height: 0; }
+  .view[hidden] { display: none !important; }
+  #setupView { overflow-y: auto; padding: 24px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px;
+          max-width: 980px; margin: 0 auto 18px; }
+  .card h2 { font-size: 16px; margin: 0 0 12px; }
+  .field { display: grid; grid-template-columns: 170px 1fr auto; gap: 10px; align-items: center; margin-bottom: 10px; }
+  .field label { font-weight: 600; }
+  .field input { padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; font: inherit; width: 100%; }
+  .hint { color: var(--muted); font-size: 12px; margin: -4px 0 10px 180px; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  table.cases { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.cases th { text-align: left; color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--line); padding: 6px 8px; }
+  table.cases td { border-bottom: 1px solid var(--line); padding: 5px 8px; }
+  table.cases tr.missing td { background: #fff7e8; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .seg button { border: 0; border-radius: 0; padding: 3px 12px; }
+  .seg button.on { background: var(--accent); color: #fff; }
+  .bar { height: 8px; background: #ecebe6; border-radius: 4px; overflow: hidden; flex: 1; min-width: 200px; }
+  .bar > div { height: 100%; background: var(--accent); width: 0; transition: width .3s; }
+  #scanList summary { cursor: pointer; margin-bottom: 6px; }
+  .recent a { display: block; color: var(--accent); cursor: pointer; font-size: 13px; padding: 2px 0; }
+  .modal { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: flex; align-items: center; justify-content: center; z-index: 10; }
+  .modal[hidden] { display: none; }
+  .modal .box { background: var(--panel); border-radius: 10px; width: min(760px, 94vw); height: min(620px, 90vh);
+                display: grid; grid-template-rows: auto auto 1fr auto; overflow: hidden; }
+  .modal .top { padding: 12px 14px; border-bottom: 1px solid var(--line); display: flex; gap: 8px; }
+  .modal .top input { flex: 1; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; font: inherit; }
+  .modal .places { padding: 8px 14px; display: flex; gap: 6px; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
+  .modal .places button { padding: 3px 9px; font-size: 12px; }
+  .modal .dirs { overflow-y: auto; }
+  .modal .dirs div { padding: 6px 14px; cursor: pointer; border-bottom: 1px solid #f0efea; }
+  .modal .dirs div:hover { background: #f3f6fb; }
+  .modal .foot { padding: 10px 14px; border-top: 1px solid var(--line); display: flex; gap: 10px; align-items: center; }
+  .modal .foot .info { flex: 1; color: var(--muted); font-size: 13px; }
+  #prescreenView { display: flex; flex-direction: column; }
+  .ps-bar { background: var(--panel); border-bottom: 1px solid var(--line); padding: 10px 16px; display: flex;
+            gap: 12px; align-items: center; flex-wrap: wrap; }
+  .ps-bar .grow { flex: 1; }
+  #grid { flex: 1; overflow-y: auto; padding: 14px; display: grid; gap: 12px;
+          grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); align-content: start; }
+  .tile { background: var(--panel); border: 2px solid var(--line); border-radius: 10px; padding: 8px; cursor: pointer;
+          user-select: none; position: relative; }
+  .tile:hover { border-color: #b9b8b1; }
+  .tile.sel { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(42,120,214,.18); }
+  .tile.done { opacity: .55; }
+  .tile .pics { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+  .tile .pics.one { grid-template-columns: 1fr; }
+  .tile .pics.one canvas { aspect-ratio: 2 / 1; }
+  .tile canvas { width: 100%; aspect-ratio: 1; background: #121212; border-radius: 4px; display: block; }
+  .tile .cap { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; gap: 6px; }
+  .tile .cap b { font-variant-numeric: tabular-nums; }
+  .tile .meta { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .tile .pick { position: absolute; top: 12px; right: 12px; background: var(--accent); color: #fff; font-size: 11px;
+                padding: 1px 8px; border-radius: 10px; display: none; }
+  .tile.sel .pick { display: block; }
+  .tile.loading { display: grid; place-items: center; min-height: 190px; color: var(--muted); cursor: default; }
+  #list .focus { padding: 8px 12px; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--line); background: #f3f6fb; }
+  #list .focus a { color: var(--accent); cursor: pointer; }
+  #toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: #1b1b19; color: #fff;
+           padding: 8px 14px; border-radius: 6px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 title="Knee Anatomy Measurements from Imaging and Network Output">KAMINO</h1>
+  <nav class="tabs"><a href="#setup" id="tabSetup">1 &middot; Setup</a>
+    <span class="tabgroup"><b>2 &middot; Tuberosity</b><a href="#tt-prescreen" data-tab="tt-prescreen">prescreen</a><a href="#tt-review" data-tab="tt-review">review</a></span>
+    <span class="tabgroup" title="Tibial posterior condylar line"><b>3 &middot; Tibial line</b><a href="#tpcl-prescreen" data-tab="tpcl-prescreen">prescreen</a><a href="#tpcl-review" data-tab="tpcl-review">review</a></span>
+    <span class="tabgroup"><b>4 &middot; Cartilage sulcus</b><a href="#sulcus-prescreen" data-tab="sulcus-prescreen">prescreen</a><a href="#sulcus-review" data-tab="sulcus-review">review</a></span></nav>
+  <span class="progress" id="progress"></span>
+  <span class="spacer"></span>
+  <span class="muted" id="loadMsg"></span>
+  <span class="muted" id="rebuildMsg"></span>
+  <a id="update" hidden target="_blank" rel="noopener" title="Download the new version from GitHub"></a>
+  <button id="rebuild" hidden title="Re-run the measurements so the spreadsheet, statistics and QC images in the results folder include your decisions. Only reviewed scans are re-measured.">Update result files</button>
+</header>
+<section class="view" id="setupView" hidden>
+  <div class="card">
+    <h2>Folders</h2>
+    <div class="field"><label for="segsDir">Segmentations</label><input id="segsDir" placeholder="folder with the .nrrd segmentations"><button data-browse="segsDir">Browse&hellip;</button></div>
+    <div class="field"><label for="scansDir">Scans <span class="muted">(optional)</span></label><input id="scansDir" placeholder="folder with the scans, e.g. sorted/ (shows the MRI under the segmentation)"><button data-browse="scansDir">Browse&hellip;</button></div>
+    <div class="hint">Scans are matched to segmentations by name: <code>&lt;code&gt;/water.nii.gz</code> or <code>&lt;code&gt;.nii.gz</code>. Picking the segmentations folder opens it.</div>
+    <div class="row"><span class="muted" id="openMsg"></span></div>
+    <div class="recent" id="recent"></div>
+  </div>
+  <div class="card" id="projectCard" hidden>
+    <h2 id="projTitle"></h2>
+    <dl class="kv" id="projInfo"></dl>
+    <div id="sideAlert" style="margin-top:12px"></div>
+    <div class="row" style="margin:14px 0">
+      <button class="primary" id="go"></button>
+      <div class="bar" id="bar" hidden><div></div></div>
+      <span class="muted" id="jobMsg"></span>
+    </div>
+    <details id="scanList"><summary class="muted" id="scanListSum"></summary>
+      <table class="cases"><thead><tr><th>Scan</th><th>Knee side</th><th>Side from</th><th>MRI scan</th></tr></thead><tbody id="caseRows"></tbody></table>
+    </details>
+  </div>
+</section>
+<section class="view" id="prescreenView" hidden>
+  <div class="ps-bar">
+    <span><b id="psTitle"></b> <span class="muted" id="psDesc"></span></span>
+    <span class="grow"></span>
+    <span class="muted" id="psCount"></span>
+  </div>
+  <div class="ps-bar">
+    <button id="psFlagged">Select flagged</button><button id="psNone">Select none</button><button id="psAll">Select all</button>
+    <label class="muted"><input type="checkbox" id="psHideDone" checked> hide scans already decided</label>
+    <label class="muted"><input type="checkbox" id="psSeg" checked> show segmentation <kbd>S</kbd></label>
+    <span class="grow"></span>
+    <button class="primary" id="psApply" disabled></button>
+  </div>
+  <div id="grid"></div>
+</section>
+<div class="modal" id="browser" hidden>
+  <div class="box">
+    <div class="top"><button id="fsUp" title="Parent folder">&uarr;</button><input id="fsPath"><button id="fsGo">Go</button></div>
+    <div class="places" id="fsPlaces"></div>
+    <div class="dirs" id="fsDirs"></div>
+    <div class="foot"><span class="info" id="fsInfo"></span><button id="fsCancel">Cancel</button><button class="primary" id="fsSelect">Select this folder</button></div>
+  </div>
+</div>
+<main class="view" id="reviewView" hidden>
+  <nav id="list"></nav>
+  <section id="viewers">
+    <div class="viewer">
+      <div class="cap"><span>Axial &middot; click to place &middot; drag to pan &middot; Ctrl+wheel to zoom</span>
+        <span><span id="axialLabel"></span> <span class="zoombtns" id="srcBtns" hidden><button id="srcDixon" title="The Dixon scan the segmentation was made on (V)">Dixon</button><button id="srcAxial" title="The axial series (V): usually the PD axial, which reaches further down the tibia">Axial</button></span></span></div>
+      <canvas id="axial"></canvas>
+      <div class="slider"><input type="range" id="zslider" min="0" max="0" value="0"></div>
+    </div>
+    <div class="viewer">
+      <div class="cap"><span>Sagittal &middot; click to place</span><span id="sagLabel"></span></div>
+      <canvas id="sagittal"></canvas>
+      <div class="slider"><input type="range" id="xslider" min="0" max="0" value="0"></div>
+    </div>
+  </section>
+  <aside>
+    <div>
+      <h2 id="caseTitle">&nbsp;</h2>
+      <div class="muted" id="caseSub"></div>
+    </div>
+    <div id="alerts"></div>
+    <dl class="kv" id="values"></dl>
+    <div class="actions" id="actTT">
+      <button class="ok" id="accept">Accept automatic point <kbd>A</kbd></button>
+      <button class="primary" id="useMine" disabled>Use my clicked point <kbd>Enter</kbd></button>
+      <button class="bad" id="notInView">Tuberosity not in view <kbd>N</kbd></button>
+      <button class="bad" id="misaligned" hidden title="The segmentation doesn't sit on the bones of the axial scan (the patient moved between the two series): TT-TG, sTT-TG and TTL are left blank, to be measured manually">Axial doesn't line up <kbd>M</kbd></button>
+    </div>
+    <div class="actions" id="actTPCL" hidden>
+      <button class="ok" id="acceptLine"><span>Accept automatic line</span> <kbd>A</kbd></button>
+      <button class="primary" id="useSlice" disabled><span>Use the line on this slice</span> <kbd>Enter</kbd></button>
+      <button class="primary" id="usePoints" disabled><span>Use my two points</span> <kbd>P</kbd></button>
+      <div class="muted" id="sliceHelp"></div>
+    </div>
+    <div class="actions">
+      <button id="clear" title="Remove the decision for this scan; it goes back to the automatic one and 'to review'">Undo decision</button>
+    </div>
+    <textarea id="note" placeholder="Note (optional)"></textarea>
+    <div class="actions" style="flex-direction:row">
+      <button id="prev">&larr; Previous <kbd>K</kbd></button>
+      <button id="next">Next &rarr; <kbd>J</kbd></button>
+    </div>
+    <div id="segCtl" hidden>
+      <label class="muted">Segmentation over the scan <kbd>S</kbd></label>
+      <input type="range" id="segOpacity" min="0" max="100" value="20" style="width:100%">
+    </div>
+    <div class="legend">
+      <span><span class="sw" style="background:#e08a3c"></span>tibia</span>
+      <span><span class="sw" style="background:#4caf6e"></span>femur</span>
+      <span><span class="sw" style="background:#2d64c8"></span>femoral cartilage</span>
+      <span><span class="sw" style="background:#9b6ad6"></span>patella</span>
+      <span><span class="sw" style="background:#be3278"></span>patellar cartilage</span>
+      <span><span class="sw" style="border:2px solid var(--auto)"></span><span id="lgAuto">automatic point</span></span>
+      <span><span class="sw" style="border:2px solid var(--mine)"></span><span id="lgMine">your point</span></span>
+      <span id="lgPreview" hidden><span class="sw" style="border:2px solid #29d3e6"></span><span id="lgPreviewText">line on this slice</span></span>
+    </div>
+    <div class="muted help">Mouse wheel over a view: scroll that view's slices<br>
+      <kbd>&uarr;</kbd> <kbd>&darr;</kbd>: axial slices &middot; <kbd>&larr;</kbd> <kbd>&rarr;</kbd>: sagittal slices<br>
+      <kbd>G</kbd>: go to the automatic one &middot; <kbd>+</kbd> <kbd>&minus;</kbd>: zoom<br>
+      <kbd>V</kbd>: Dixon / axial scan (tuberosity, when there's an axial)<br>
+      The white lines show where the other view's slice cuts through.</div>
+  </aside>
+</main>
+<div id="toast"></div>
+<script>
+// cartilage (2, 4) darker than the bones, and drawn CART_BOOST times as opaque, so it stands out over the
+// bright cartilage on the Dixon
+const COLORS = {1: [76,175,110], 2: [45,100,200], 3: [155,106,214], 4: [190,50,120], 5: [224,138,60]};
+const CARTILAGE = new Set([2, 4]), CART_BOOST = 1.75;
+function overlayOpacity(v, op) { return CARTILAGE.has(v) ? Math.min(1, op * CART_BOOST) : op; }
+const $ = id => document.getElementById(id);
+let S = {state: null, idx: 0, info: null, z: 0, mine: null, zoom: 1, slices: new Map(), sag: new Map(), busy: false,
+         pts: [], preview: new Map()};
+let STEP = 'tt';      // 'tt' = tibial tuberosity, 'tpcl' = tibial posterior condylar line, 'sulcus' = trochlear sulcus
+const STEP_NAME = {tt: 'tuberosity', tpcl: 'tibial posterior line', sulcus: 'cartilage sulcus'};
+// tpcl and sulcus are "slice" steps: accept the automatic landmark, re-detect it on another slice, or click points
+const NPTS = {tpcl: 2, sulcus: 3};
+const THING = {tt: 'point', tpcl: 'line', sulcus: 'cartilage sulcus'};
+const STATUS_TEXT = {accepted: 'accepted', replaced: 'replaced', not_in_view: 'not in view', misaligned: "doesn't line up"};
+// tuberosity step: S.src = 'axial' shows the axial series (see AxialDisplay) instead of the Dixon; its slices go
+// below the segmentation's slice 0, down to zlo()
+function hasAxial() { return STEP === 'tt' && S.info && S.info.axial_z_below !== null && S.info.axial_z_below !== undefined; }
+function zlo() { return S.src === 'axial' ? -S.info.axial_z_below : 0; }
+function setSrc(src) {
+  if (src === S.src || (src === 'axial' && !hasAxial())) return;
+  S.src = src; S.slices = new Map(); S.sag = new Map();
+  $('zslider').min = zlo(); S.z = Math.max(zlo(), S.z);
+  renderInfo(); draw();
+}
+function autoOf(info) { return STEP === 'tpcl' ? info.tpcl_auto : info.sulcus_auto; }
+function q(path) { return path + (path.includes('?') ? '&' : '?') + 'step=' + STEP; }
+
+async function api(path, body) {
+  const r = await fetch('/api/' + path, body === undefined ? {} :
+    {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.style.opacity = 1; clearTimeout(t._h);
+  t._h = setTimeout(() => t.style.opacity = 0, 2200); }
+function fmt(v, d=1) { return v === null || v === undefined ? '—' : Number(v).toFixed(d); }
+
+function focusKey() { return 'km_focus_' + STEP + '_' + (P.project ? P.project.root : ''); }
+function getFocus() { try { const v = JSON.parse(localStorage.getItem(focusKey()) || 'null'); return v ? new Set(v) : null; } catch (e) { return null; } }
+function setFocus(codes) { try { codes ? localStorage.setItem(focusKey(), JSON.stringify([...codes])) : localStorage.removeItem(focusKey()); } catch (e) {} }
+
+async function loadState(keepIdx) {
+  S.state = await api(q('state'));
+  S.allCount = S.state.cases.length;
+  S.focus = getFocus();
+  if (S.focus && S.focus.size) S.state.cases = S.state.cases.filter(c => S.focus.has(c.case));
+  // flagged and unreviewed first, then the rest
+  const order = c => c.status !== 'unreviewed' ? 2 : (c.flag ? 0 : 1);
+  if (!keepIdx) S.state.cases.sort((a, b) => order(a) - order(b) || a.case.localeCompare(b.case));
+  else { const pos = new Map(S.order.map((c, i) => [c, i]));
+         S.state.cases.sort((a, b) => pos.get(a.case) - pos.get(b.case)); }
+  S.order = S.state.cases.map(c => c.case);
+  renderList();
+  const done = S.state.cases.filter(c => c.status !== 'unreviewed').length;
+  $('progress').textContent = `${S.state.pull} · ${STEP_NAME[STEP]} · ${done} of ${S.state.cases.length} decided`;
+  const rb = S.state.job;
+  $('rebuildMsg').textContent = rb.error ? 'Updating the result files failed: ' + rb.error : (rb.running ? `Updating the result files ${rb.done}/${rb.total}…` : '');
+  $('rebuild').disabled = rb.running;
+}
+
+function renderList() {
+  const el = $('list'); el.innerHTML = '';
+  if (S.focus && S.focus.size) {
+    const f = document.createElement('div'); f.className = 'focus';
+    f.innerHTML = `${S.state.cases.length} scans picked in prescreen of ${S.allCount} · <a>show all</a>`;
+    f.querySelector('a').onclick = async () => { setFocus(null); await loadState(false); openCase(0); };
+    el.appendChild(f);
+  }
+  S.state.cases.forEach((c, i) => {
+    const d = document.createElement('div');
+    d.className = 'item' + (i === S.idx ? ' active' : '');
+    const label = c.status === 'unreviewed' ? (c.flag ? (c.flag_reason || 'check') : 'to review') : STATUS_TEXT[c.status];
+    const cls = c.status === 'unreviewed' ? (c.flag ? 'b-flag' : 'b-unreviewed') : 'b-' + c.status;
+    d.innerHTML = `<span class="code">${c.case}</span><span class="badge ${cls}">${label}</span>`;
+    d.onclick = () => openCase(i);
+    el.appendChild(d);
+  });
+}
+
+async function openCase(i) {
+  S.idx = Math.max(0, Math.min(i, S.state.cases.length - 1));
+  renderList();
+  const code = S.state.cases[S.idx].case;
+  $('caseTitle').textContent = code;
+  $('caseSub').textContent = 'loading…';
+  S.slices = new Map(); S.sag = new Map(); S.mine = null; S.mineSrc = null; S.zoom = 1; S.pts = []; S.preview = new Map();
+  S.info = await api(q('case/' + encodeURIComponent(code)));
+  const r = S.info.review;
+  // a scan whose tuberosity is probably below the Dixon opens on the axial series
+  S.src = hasAxial() && ((r && r.source === 'axial') || S.info.flag_out_of_view) ? 'axial' : 'dixon';
+  let target;
+  if (STEP === 'tt') {
+    if (r && r.point) { S.mine = r.point.slice(); S.mineSrc = r.source || null; }
+    target = S.mine || S.info.auto_point;
+    S.z = target ? target[2] : (S.info.tibia_z ? S.info.tibia_z[0] : 0);
+  } else {
+    const line = r || autoOf(S.info), range = STEP === 'tpcl' ? S.info.tibia_z : S.info.trochlea_z;
+    S.z = line ? line.z : (range ? Math.round((range[0] + range[1]) / 2) : 0);
+  }
+  $('zslider').max = S.info.shape[2] - 1; $('zslider').min = zlo();
+  $('xslider').max = S.info.shape[0] - 1;
+  $('note').value = (r && r.note) || '';
+  await fitView();
+  S.x = Math.round(target ? target[0] : (S.box[0] + S.box[1]) / 2);
+  renderInfo();
+  await draw();
+  // load the other scans in the background, nearest first (next unreviewed ones before anything
+  // else), so moving on or clicking another scan in the list is instant
+  const n = S.state.cases.length, order = [];
+  for (let d = 1; d < n; d++) for (const k of [S.idx + d, S.idx - d]) if (k >= 0 && k < n) order.push(S.state.cases[k]);
+  const ahead = [...order.filter(c => c.status === 'unreviewed'), ...order.filter(c => c.status !== 'unreviewed')].map(c => c.case);
+  if (ahead.length) api('prefetch', {cases: ahead}).then(watchLoading).catch(() => {});
+}
+
+// Slices are cached per view as promises (so a slice already on its way isn't asked for twice), keeping only the
+// most recently used: each is about 1 MB, plus its image once drawn.
+const SLICE_CACHE = 24;
+function getSlice(plane, idx) {
+  const cache = plane === 'axial' ? S.slices : S.sag;
+  let p = cache.get(idx);
+  if (p) { cache.delete(idx); cache.set(idx, p); return p; }
+  p = fetchSlice(plane, idx);
+  p.catch(() => { if (cache.get(idx) === p) cache.delete(idx); });
+  cache.set(idx, p);
+  while (cache.size > SLICE_CACHE) cache.delete(cache.keys().next().value);
+  return p;
+}
+async function fetchSlice(plane, idx) {
+  // raw bytes: the segmentation, then the scan (finer than the segmentation, scanShape); shapes in the headers
+  const r = await fetch(`/api/case/${encodeURIComponent(S.info.case)}/${plane}/${idx}` + (S.src === 'axial' ? '?src=axial' : ''));
+  if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+  const buf = new Uint8Array(await r.arrayBuffer()), dims = h => h ? h.split(',').map(Number) : null;
+  const shape = dims(r.headers.get('X-Shape')), ss = dims(r.headers.get('X-Scan-Shape')), n = shape[0] * shape[1];
+  return {shape, data: buf.subarray(0, n), scan: ss ? buf.subarray(n) : null, scanShape: ss || shape,
+          fx: ss ? ss[0] / shape[0] : 1, fy: ss ? ss[1] / shape[1] : 1};
+}
+// Fetch the next few slices in the direction of scrolling (and one behind) in the background, so scrolling rarely
+// waits for the server.
+function warm(plane, cur, dir, lo, hi) {
+  for (const d of [1, 2, 3, 4, -1]) { const k = cur + d * (dir || 1); if (k >= lo && k <= hi) getSlice(plane, k).catch(() => {}); }
+}
+
+// Fit the axial view to the whole knee as seen from above (every slice), plus a small margin, so
+// nothing is cut off whichever slice is shown. Zoom/pan from there with the buttons, Ctrl+wheel or drag.
+async function fitView() {
+  const [nx, ny] = S.info.shape;
+  let [x0, x1] = S.info.x_extent || [0, nx - 1], [y0, y1] = S.info.y_extent || [0, ny - 1];
+  const m = Math.round(0.08 * Math.max(x1 - x0, y1 - y0));
+  S.box = [Math.max(0, x0 - m), Math.min(nx - 1, x1 + m), Math.max(0, y0 - m), Math.min(ny - 1, y1 + m)];
+  S.zoom = 1; S.center = [(S.box[0] + S.box[1]) / 2, (S.box[2] + S.box[3]) / 2];
+}
+
+function viewBox() {
+  const [x0, x1, y0, y1] = S.box, [cx, cy] = S.center;
+  const hw = (x1 - x0 + 1) / 2 / S.zoom, hh = (y1 - y0 + 1) / 2 / S.zoom;
+  return [cx - hw, cx + hw, cy - hh, cy + hh];
+}
+
+// Zoom by factor f keeping the voxel under (ax, ay) -- or the view centre -- where it is.
+function zoomBy(f, ax, ay) {
+  const z0 = S.zoom, z1 = Math.max(0.5, Math.min(10, z0 * f));
+  if (ax !== undefined) {
+    S.center = [ax + (S.center[0] - ax) * z0 / z1, ay + (S.center[1] - ay) * z0 / z1];
+  }
+  S.zoom = z1; draw();
+}
+
+function sizeCanvas(c) {
+  const r = c.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  if (c.width !== Math.round(r.width * dpr) || c.height !== Math.round(r.height * dpr)) {
+    c.width = Math.round(r.width * dpr); c.height = Math.round(r.height * dpr);
+  }
+  return dpr;
+}
+
+function b64bytes(s) { const bin = atob(s), arr = new Uint8Array(bin.length);
+  for (let k = 0; k < bin.length; k++) arr[k] = bin.charCodeAt(k); return arr; }
+
+function labelImage(sl, transpose) {
+  // axial: data is (x, y) -> image col=x, row=y. sagittal: data is (y, z) -> col=y, row=nz-1-z.
+  // With a scan: the MRI in grayscale, segmentation blended on top at the chosen opacity.
+  const [a, b] = sl.shape;
+  const w = a, h = b;
+  const img = new ImageData(w, h);
+  const op = sl.scan ? (S.segOn ? S.segOpacity : 0) : 1;
+  for (let i = 0; i < a; i++) for (let j = 0; j < b; j++) {
+    const k = i * b + j, v = sl.data[k];
+    const row = transpose ? (b - 1 - j) : j, p = (row * w + i) * 4;
+    if (sl.scan) {
+      const gval = sl.scan[k];
+      let r = gval, gg = gval, bb = gval;
+      if (v && op > 0) { const c = COLORS[v] || [200, 200, 200], o = overlayOpacity(v, op);
+        r = c[0] * o + gval * (1 - o); gg = c[1] * o + gval * (1 - o); bb = c[2] * o + gval * (1 - o); }
+      img.data[p] = r; img.data[p+1] = gg; img.data[p+2] = bb; img.data[p+3] = 255;
+    } else if (v) {
+      const c = COLORS[v] || [200, 200, 200];
+      img.data[p] = c[0]; img.data[p+1] = c[1]; img.data[p+2] = c[2]; img.data[p+3] = v === 5 ? 255 : 150;
+    }
+  }
+  const off = document.createElement('canvas'); off.width = w; off.height = h;
+  off.getContext('2d').putImageData(img, 0, 0);
+  return off;
+}
+
+// Draw slice sl's source rectangle (in segmentation voxels) into the destination rectangle: the scan smoothed at
+// its own resolution (the Dixon's, or the finer axial series'), with the segmentation over it, crisp.
+function paint(ctx, sl, transpose, sx0, sy0, sw, sh, dx, dy, dw, dh) {
+  ctx.imageSmoothingEnabled = false;
+  if (!sl.scan) { ctx.drawImage(labelImage(sl, transpose), sx0, sy0, sw, sh, dx, dy, dw, dh); return; }
+  sl.gray = sl.gray || grayImage(sl.scan, sl.scanShape, transpose);
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(sl.gray, sx0 * sl.fx, sy0 * sl.fy, sw * sl.fx, sh * sl.fy, dx, dy, dw, dh);
+  ctx.imageSmoothingEnabled = false;
+  if (S.segOn && S.segOpacity > 0) {
+    sl.mask = sl.mask || [maskImage(sl, transpose, false), maskImage(sl, transpose, true)];   // bone, cartilage
+    sl.mask.forEach((m, k) => { ctx.globalAlpha = k ? overlayOpacity(2, S.segOpacity) : S.segOpacity;
+                                ctx.drawImage(m, sx0, sy0, sw, sh, dx, dy, dw, dh); });
+    ctx.globalAlpha = 1;
+  }
+}
+function grayImage(data, [a, b], transpose) {
+  const img = new ImageData(a, b);
+  for (let i = 0; i < a; i++) for (let j = 0; j < b; j++) {
+    const v = data[i * b + j], p = ((transpose ? b - 1 - j : j) * a + i) * 4;
+    img.data[p] = img.data[p+1] = img.data[p+2] = v; img.data[p+3] = 255;
+  }
+  const off = document.createElement('canvas'); off.width = a; off.height = b;
+  off.getContext('2d').putImageData(img, 0, 0);
+  return off;
+}
+function maskImage(sl, transpose, cartilage) {   // the bone or the cartilage labels in their colours, transparent elsewhere
+  const [a, b] = sl.shape, img = new ImageData(a, b);
+  for (let i = 0; i < a; i++) for (let j = 0; j < b; j++) {
+    const v = sl.data[i * b + j]; if (!v || CARTILAGE.has(v) !== cartilage) continue;
+    const c = COLORS[v] || [200, 200, 200], p = ((transpose ? b - 1 - j : j) * a + i) * 4;
+    img.data[p] = c[0]; img.data[p+1] = c[1]; img.data[p+2] = c[2]; img.data[p+3] = 255;
+  }
+  const off = document.createElement('canvas'); off.width = a; off.height = b;
+  off.getContext('2d').putImageData(img, 0, 0);
+  return off;
+}
+
+function marker(ctx, x, y, color, onSlice, label) {
+  ctx.save(); ctx.lineWidth = 2.5; ctx.strokeStyle = color;
+  if (!onSlice) ctx.setLineDash([4, 4]);
+  ctx.beginPath(); ctx.arc(x, y, 9, 0, 2 * Math.PI); ctx.stroke();
+  ctx.setLineDash([]);
+  if (onSlice) { ctx.beginPath(); ctx.moveTo(x - 14, y); ctx.lineTo(x - 5, y); ctx.moveTo(x + 5, y); ctx.lineTo(x + 14, y);
+                 ctx.moveTo(x, y - 14); ctx.lineTo(x, y - 5); ctx.moveTo(x, y + 5); ctx.lineTo(x, y + 14); ctx.stroke(); }
+  if (label) { ctx.font = '12px system-ui'; ctx.fillStyle = color; ctx.fillText(label, x + 13, y - 11); }
+  ctx.restore();
+}
+
+let drawToken = 0;
+async function draw() {
+  if (!S.info) return;
+  const token = ++drawToken;
+  const [sx, sy, sz] = S.info.spacing;
+  $('zslider').value = S.z;
+  const tz = S.info.tibia_z;
+  $('axialLabel').textContent = `z = ${S.z} of ${S.info.shape[2] - 1}` + (S.z < 0 ? ' · below the Dixon' : (tz ? ` · tibia ${tz[0]}–${tz[1]}` : ''));
+
+  // axial
+  const ac = $('axial'), dpr = sizeCanvas(ac), ctx = ac.getContext('2d');
+  const sl = await getSlice('axial', S.z); if (token !== drawToken) return;
+  warm('axial', S.z, S.dirZ, zlo(), S.info.shape[2] - 1);
+  const [vx0, vx1, vy0, vy1] = viewBox();
+  const scale = Math.min(ac.width / ((vx1 - vx0) * sx), ac.height / ((vy1 - vy0) * sy));
+  const ox = (ac.width - (vx1 - vx0) * sx * scale) / 2, oy = (ac.height - (vy1 - vy0) * sy * scale) / 2;
+  const toA = (x, y) => [ox + (x + 0.5 - vx0) * sx * scale, oy + (y + 0.5 - vy0) * sy * scale];
+  S.fromA = (px, py) => [vx0 + (px - ox) / (sx * scale) - 0.5, vy0 + (py - oy) / (sy * scale) - 0.5];
+  ctx.fillStyle = '#121212'; ctx.fillRect(0, 0, ac.width, ac.height);
+  paint(ctx, sl, false, vx0, vy0, vx1 - vx0, vy1 - vy0, ox, oy, (vx1 - vx0) * sx * scale, (vy1 - vy0) * sy * scale);
+  ctx.font = `${12 * dpr}px system-ui`;
+  const tag = (t, x, y) => { const w = ctx.measureText(t).width;
+    ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(x - 3 * dpr, y - 12 * dpr, w + 6 * dpr, 16 * dpr);
+    ctx.fillStyle = '#d0d0d0'; ctx.fillText(t, x, y); };
+  tag('anterior', ac.width / 2 - 24 * dpr, 18 * dpr);
+  tag(S.info.side === 'R' ? 'lateral' : 'medial', 6 * dpr, ac.height / 2);
+  tag(S.info.side === 'R' ? 'medial' : 'lateral', ac.width - 50 * dpr, ac.height / 2);
+  const ap = STEP === 'tt' ? S.info.auto_point : null;
+  if (STEP === 'tt') {
+    if (ap) { const [x, y] = toA(ap[0], ap[1]);
+      marker(ctx, x, y, getVar('--auto'), ap[2] === S.z, ap[2] === S.z ? 'auto' : `auto (z ${ap[2]})`); }
+    if (S.mine) { const [x, y] = toA(S.mine[0], S.mine[1]);
+      marker(ctx, x, y, getVar('--mine'), S.mine[2] === S.z, S.mine[2] === S.z ? 'yours' : `yours (z ${S.mine[2]})`); }
+  } else {
+    const drawLine = (line, color, label, dashed, slot) => {
+      const [ax, ay] = toA(line.medial_pt[0], line.medial_pt[1]), [bx, by] = toA(line.lateral_pt[0], line.lateral_pt[1]);
+      const dx = bx - ax, dy = by - ay, n = Math.hypot(dx, dy) || 1, ext = ac.width + ac.height;
+      ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 2 * dpr; if (dashed) ctx.setLineDash([6 * dpr, 5 * dpr]);
+      ctx.beginPath(); ctx.moveTo(ax - dx / n * ext, ay - dy / n * ext); ctx.lineTo(bx + dx / n * ext, by + dy / n * ext); ctx.stroke();
+      ctx.setLineDash([]); ctx.fillStyle = color;
+      for (const [px2, py2] of [[ax, ay], [bx, by]]) { ctx.beginPath(); ctx.arc(px2, py2, 4 * dpr, 0, 2 * Math.PI); ctx.fill(); }
+      if (label) {             // each line labels a different spot so labels never sit on top of each other
+        ctx.font = `${12 * dpr}px system-ui`;
+        const [lx, ly] = slot === 0 ? [ax, ay - 12 * dpr] : slot === 1 ? [bx, by + 20 * dpr] : [ax, ay + 20 * dpr];
+        const w = ctx.measureText(label).width;
+        ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(lx - w / 2 - 3 * dpr, ly - 12 * dpr, w + 6 * dpr, 16 * dpr);
+        ctx.fillStyle = color; ctx.fillText(label, lx - w / 2, ly);
+      }
+      ctx.restore();
+    };
+    // sulcus: medial facet peak -> sulcus -> lateral facet peak, with the angle at the sulcus
+    const drawV = (v, color, label, dashed, slot) => {
+      const pts = [v.medial_pt, v.sulcus, v.lateral_pt].map(p2 => toA(p2[0], p2[1]));
+      ctx.save(); ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 2 * dpr;
+      if (dashed) ctx.setLineDash([6 * dpr, 5 * dpr]);
+      ctx.beginPath(); ctx.moveTo(...pts[0]); ctx.lineTo(...pts[1]); ctx.lineTo(...pts[2]); ctx.stroke(); ctx.setLineDash([]);
+      for (const [px2, py2] of pts) { ctx.beginPath(); ctx.arc(px2, py2, 4 * dpr, 0, 2 * Math.PI); ctx.fill(); }
+      if (label) {             // a key in the top-left corner, one row per V, so no label covers the cartilage
+        ctx.font = `${12 * dpr}px system-ui`;
+        const t = `${label} · ${v.angle.toFixed(0)}°`, w = ctx.measureText(t).width;
+        const lx = 10 * dpr, ly = (22 + 20 * slot) * dpr;
+        ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(lx - 3 * dpr, ly - 12 * dpr, w + 22 * dpr, 16 * dpr);
+        ctx.fillRect(lx, ly - 5 * dpr, 12 * dpr, 2 * dpr);
+        ctx.fillStyle = color; ctx.fillRect(lx, ly - 5 * dpr, 12 * dpr, 2 * dpr); ctx.fillText(t, lx + 16 * dpr, ly);
+      }
+      ctx.restore();
+    };
+    const draw1 = STEP === 'tpcl' ? drawLine : drawV;
+    const auto = autoOf(S.info), rv = S.info.review;
+    const pv = S.preview.get(S.z);
+    if (pv === undefined) {
+      S.preview.set(S.z, null);
+      api(`case/${encodeURIComponent(S.info.case)}/${STEP}_preview`, {z: S.z})
+        .then(j => { const v = STEP === 'tpcl' ? j.line : j.sulcus;
+                     S.preview.set(v ? v.z : S.z, v); if (S.info && v && v.z === S.z) { renderInfo(); draw(); } })
+        .catch(() => {});
+    }
+    const mineV = rv && rv.status === 'replaced' ? (STEP === 'tpcl' ? rv : S.info.sulcus_review) : null;
+    if (pv && !(rv && rv.z === S.z && rv.method === 'slice')) draw1(pv, '#29d3e6', 'this slice', true, 1);
+    if (auto) draw1(auto, getVar('--auto'), auto.z === S.z ? 'auto' : `auto (from z ${auto.z})`, auto.z !== S.z, 0);
+    if (mineV) draw1(mineV, getVar('--mine'), mineV.z === S.z ? 'yours' : `yours (z ${mineV.z})`, mineV.z !== S.z, 2);
+    if (S.pts.length) {
+      ctx.save(); ctx.fillStyle = getVar('--mine'); ctx.strokeStyle = getVar('--mine'); ctx.lineWidth = 2 * dpr;
+      ctx.font = `${12 * dpr}px system-ui`;
+      const pts = S.pts.map(p2 => toA(p2[0], p2[1]));
+      for (const [px2, py2] of pts) { ctx.beginPath(); ctx.arc(px2, py2, 5 * dpr, 0, 2 * Math.PI); ctx.fill(); }
+      ctx.beginPath();
+      if (STEP === 'tpcl' && pts.length === 2) { ctx.moveTo(...pts[0]); ctx.lineTo(...pts[1]); }
+      if (STEP === 'sulcus' && pts.length === 3) {     // any click order: left to right, the middle one is the sulcus
+        const v = pts.slice().sort((a, b) => a[0] - b[0]);
+        const outer = S.info.side === 'R' ? ['lateral', 'medial'] : ['medial', 'lateral'];
+        ctx.moveTo(...v[0]); ctx.lineTo(...v[1]); ctx.lineTo(...v[2]);
+        [outer[0], 'sulcus', outer[1]].forEach((t, k) => ctx.fillText(t, v[k][0] - ctx.measureText(t).width / 2, v[k][1] - 10 * dpr));
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+  { // where the sagittal slice cuts this view
+    const [lx] = toA(S.x, 0);
+    ctx.save(); ctx.strokeStyle = '#ffffff'; ctx.globalAlpha = 0.45; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(lx, 0); ctx.lineTo(lx, ac.height); ctx.stroke(); ctx.restore(); }
+
+  // sagittal slice at S.x
+  const px = S.x;
+  $('xslider').value = px;
+  const sc = $('sagittal'); sizeCanvas(sc); const g = sc.getContext('2d');
+  const sg = await getSlice('sagittal', px); if (token !== drawToken) return;
+  warm('sagittal', px, S.dirX, 0, S.info.shape[0] - 1);
+  const [ny, nzv] = sg.shape, nz = S.info.shape[2];   // nzv: the segmentation's slices, plus those below it on the axial
+  // front-to-back: fit to the whole knee (fixed while scrolling); top-to-bottom: the whole scan,
+  // so a tibia running off the bottom edge of the scan is visible
+  let [ya, yb] = S.info.y_extent || [0, ny - 1];
+  const ym = Math.round(0.15 * (yb - ya + 1)); ya = Math.max(0, ya - ym); yb = Math.min(ny - 1, yb + ym);
+  const wy = yb - ya + 1;
+  const sscale = Math.min(sc.width / (wy * sy), (sc.height - 30 * dpr) / (nzv * sz));
+  const sox = (sc.width - wy * sy * sscale) / 2, soy = (sc.height - nzv * sz * sscale) / 2;
+  const toS = (y, z) => [sox + (y - ya + 0.5) * sy * sscale, soy + (nz - 1 - z + 0.5) * sz * sscale];
+  S.fromS = (px2, py2) => [ya + (px2 - sox) / (sy * sscale) - 0.5, Math.round(nz - 1 - ((py2 - soy) / (sz * sscale) - 0.5))];
+  g.fillStyle = '#121212'; g.fillRect(0, 0, sc.width, sc.height); g.imageSmoothingEnabled = false;
+  g.fillStyle = '#242424'; g.fillRect(sox, soy, wy * sy * sscale, nzv * sz * sscale);
+  paint(g, sg, true, ya, 0, wy, nzv, sox, soy, wy * sy * sscale, nzv * sz * sscale);
+  g.fillStyle = '#8a8a8a'; g.font = `${11 * dpr}px system-ui`;
+  g.fillText(S.src === 'axial' ? 'bottom of the axial scan' : 'bottom of scan', sox + 4 * dpr, soy + nzv * sz * sscale + 14 * dpr);
+  if (nzv > nz) {          // where the Dixon (and the segmentation) stops
+    const [, by] = toS(0, -0.5);
+    g.save(); g.strokeStyle = '#d0d0d0'; g.setLineDash([2 * dpr, 4 * dpr]); g.beginPath(); g.moveTo(sox, by);
+    g.lineTo(sox + wy * sy * sscale, by); g.stroke(); g.restore();
+    g.fillStyle = '#d0d0d0'; g.fillText('bottom of the Dixon', sox + 4 * dpr, by - 4 * dpr);
+  }
+  const nx = S.info.shape[0], sideL = S.info.side === 'R' ? 'lateral' : 'medial', sideR = S.info.side === 'R' ? 'medial' : 'lateral';
+  $('sagLabel').textContent = `x = ${px} of ${nx - 1} · ${sideL} ← → ${sideR}`;
+  const [, lineY] = toS(0, S.z);
+  g.strokeStyle = '#ffffff'; g.globalAlpha = 0.6; g.lineWidth = 1; g.beginPath(); g.moveTo(0, lineY); g.lineTo(sc.width, lineY); g.stroke();
+  g.globalAlpha = 1;
+  const win = STEP === 'tt' ? S.info.search_window_z : null;
+  if (STEP !== 'tt') {
+    const lines = [[autoOf(S.info), getVar('--auto')], [S.info.review && S.info.review.status === 'replaced' ? S.info.review : null, getVar('--mine')]];
+    for (const [l, color] of lines) if (l) { const [, yy] = toS(0, l.z);
+      g.strokeStyle = color; g.lineWidth = 2; g.setLineDash([3, 3]); g.beginPath(); g.moveTo(0, yy); g.lineTo(sc.width, yy); g.stroke(); g.setLineDash([]); }
+  }
+  if (win && win[0] !== null) { g.setLineDash([5, 5]); g.strokeStyle = '#8d8d8d';
+    for (const wz of win) { const [, yy] = toS(0, wz); g.beginPath(); g.moveTo(0, yy); g.lineTo(sc.width, yy); g.stroke(); }
+    g.setLineDash([]); }
+  g.fillStyle = '#9a9a9a'; g.font = `${12 * dpr}px system-ui`;
+  g.fillText('anterior', 8 * dpr, 16 * dpr); g.fillText('superior ↑', sc.width - 70 * dpr, 16 * dpr);
+  if (ap) { const [x, y] = toS(ap[1], ap[2]); marker(g, x, y, getVar('--auto'), ap[0] === px, null); }
+  if (STEP === 'tt' && S.mine) { const [x, y] = toS(S.mine[1], S.mine[2]); marker(g, x, y, getVar('--mine'), Math.round(S.mine[0]) === px, null); }
+}
+
+function getVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+
+function renderInfo() {
+  const i = S.info, r = i.review, c = S.state.cases[S.idx];
+  $('caseSub').textContent = `${i.side === 'R' ? 'Right' : i.side === 'L' ? 'Left' : 'Unknown'} knee`;
+  const onAxial = STEP === 'tt' && S.src === 'axial';
+  $('segCtl').hidden = !i.has_scan && !onAxial;
+  $('srcBtns').hidden = !hasAxial();
+  $('srcDixon').classList.toggle('on', !onAxial); $('srcAxial').classList.toggle('on', onAxial);
+  $('misaligned').hidden = !onAxial;
+  const alerts = [];
+  if (i.scan_note && !onAxial) alerts.push(['info', i.scan_note]);
+  if (i.axial_note && STEP === 'tt') alerts.push(['info', i.axial_note]);
+  if (!i.has_scan && !onAxial) alerts.push(['info', 'No MRI scan for this segmentation (pick a scans folder on the setup page to show it).']);
+  if (STEP === 'tt' && i.flag_out_of_view) alerts.push(['warn', `Only ${fmt(i.tibia_length_mm, 0)} mm of tibia is in the Dixon scan, so the tuberosity is probably below it` +
+    (hasAxial() ? (onAxial ? '. The axial scan shown here reaches further down.' : ': switch to the axial scan (<kbd>V</kbd>), which reaches further down.')
+                : '; check whether the automatic point is really the tuberosity.')]);
+  if (onAxial) alerts.push(['info', "The axial scan, with the Dixon's segmentation over it. Where both show the knee, check the segmentation sits on the bones. If it doesn't, the patient moved between the two series and a point marked here can't be combined with it: use <b>Axial doesn't line up</b> and measure this scan manually."]);
+  if (STEP === 'tt' && !i.auto_point) alerts.push(['warn', `No automatic point: ${i.auto_note || 'not found'}.`]);
+  if (STEP === 'tpcl' && !i.tpcl_auto) alerts.push(['warn', `No automatic line: ${i.tpcl_auto_note || 'not found'}. Pick a slice or click two points.`]);
+  if (STEP === 'sulcus' && !i.sulcus_auto) alerts.push(['warn', `No automatic cartilage sulcus: ${i.sulcus_auto_note || 'not found'}. Pick a slice or click three points.`]);
+  const how = {auto: `automatic ${THING[STEP]}`, slice: `${THING[STEP]} on slice ${r && r.z}`, points: `${NPTS[STEP]} clicked points`};
+  if (r) alerts.push(['info', `Decision: <b>${STATUS_TEXT[r.status] || r.status}</b>${r.source === 'axial' ? ' (marked on the axial scan)' : ''}${r.method ? ' (' + how[r.method] + ')' : ''}${r.reviewer ? ' by ' + r.reviewer : ''}, ${(r.time || '').replace('T', ' ')}`]);
+  $('alerts').innerHTML = alerts.map(([k, t]) => `<div class="alert ${k}">${t}</div>`).join('');
+  const v = S.values || i.values;
+  $('actTT').hidden = STEP !== 'tt'; $('actTPCL').hidden = STEP === 'tt';
+  $('lgAuto').textContent = `automatic ${THING[STEP]}`;
+  $('lgMine').textContent = STEP === 'tt' ? 'your point' : `your ${THING[STEP]} / points`;
+  $('lgPreview').hidden = STEP === 'tt'; $('lgPreviewText').textContent = `${THING[STEP]} on this slice`;
+  $('clear').disabled = !r;
+  if (STEP !== 'tt') {
+    const auto = autoOf(i), pv = S.preview.get(S.z), n = NPTS[STEP];
+    $('acceptLine').firstElementChild.textContent = `Accept automatic ${THING[STEP]}`;
+    $('useSlice').firstElementChild.textContent = `Use the ${THING[STEP]} on this slice`;
+    $('usePoints').firstElementChild.textContent = `Use my ${n === 2 ? 'two' : 'three'} points`;
+    $('sliceHelp').innerHTML = STEP === 'tpcl'
+      ? 'Scroll to a slice where both posterior condyles are clear: its line is previewed in cyan. Or click the medial and lateral condyle points yourself (<kbd>Esc</kbd> clears them).'
+      : 'Scroll to the slice you want: the cartilage sulcus found on it is previewed in cyan. Or click the two cartilage facet peaks and the deepest point of the cartilage groove yourself, in any order (<kbd>Esc</kbd> clears them).';
+    const here = STEP === 'tpcl' ? (pv ? `${fmt(pv.theta)}°` : (pv === null ? 'no two condyles here' : '…'))
+                                 : (pv ? `${fmt(pv.angle)}°` : (pv === null ? 'no cartilage sulcus found here' : '…'));
+    $('values').innerHTML = (STEP === 'tpcl' ? `
+      <dt>KRA</dt><dd>${fmt(v.KRA_deg)}°</dd>
+      <dt>TTL</dt><dd>${fmt(v.TTL, 2)}</dd>
+      <dt>Automatic line</dt><dd>${auto ? `slice ${auto.z}, ${fmt(auto.theta)}°` : '—'}</dd>
+      <dt>Line on slice ${S.z}</dt><dd>${here}</dd>` : `
+      <dt>Sulcus angle (cartilage)</dt><dd>${fmt(v.sulcus_angle_deg)}°</dd>
+      <dt>LTI</dt><dd>${fmt(v.LTI_deg)}°</dd>
+      <dt>Trochlear depth</dt><dd>${fmt(v.trochlear_depth_mm)} mm</dd>
+      <dt>TT-TG</dt><dd>${fmt(v.TT_TG_mm)} mm</dd>
+      <dt>Automatic cartilage sulcus</dt><dd>${auto ? `slice ${auto.z}, ${fmt(auto.angle)}°` : '—'}</dd>
+      <dt>Cartilage sulcus on slice ${S.z}</dt><dd>${here}</dd>`) + `
+      <dt>Your points</dt><dd>${S.pts.length ? S.pts.length + ' of ' + n : '—'}</dd>`;
+    $('acceptLine').disabled = !auto;
+    $('useSlice').disabled = !pv;
+    $('usePoints').disabled = S.pts.length !== n;
+    S.values = null;
+    return;
+  }
+  $('values').innerHTML = `
+    <dt>TT-TG</dt><dd>${fmt(v.TT_TG_mm)} mm</dd>
+    <dt>sTT-TG</dt><dd>${fmt(v.sTT_TG_mm)} mm</dd>
+    <dt>TTL</dt><dd>${fmt(v.TTL, 2)}</dd>
+    <dt>Tibia in scan</dt><dd>${fmt(i.tibia_length_mm, 0)} mm</dd>
+    <dt>Automatic point</dt><dd>${i.auto_point ? `x ${i.auto_point[0]}, y ${i.auto_point[1]}, z ${i.auto_point[2]}` : '—'}</dd>
+    <dt>Your point</dt><dd>${S.mine ? `x ${fmt(S.mine[0], S.mineSrc === 'axial' ? 1 : 0)}, y ${fmt(S.mine[1], S.mineSrc === 'axial' ? 1 : 0)}, z ${S.mine[2]}` + (S.mineSrc === 'axial' ? ' (axial)' : '') : '—'}</dd>`;
+  $('accept').disabled = !i.auto_point;
+  $('useMine').disabled = !S.mine || (r && r.point && S.mine.join() === r.point.join() && r.status === 'replaced');
+  S.values = null;
+}
+
+async function decide(status) {
+  if (S.busy) return;
+  S.busy = true;
+  try {
+    const body = {status, note: $('note').value, step: STEP};
+    if (STEP === 'tt' && status === 'replaced') { body.point = S.mine; body.source = S.mineSrc; }
+    if (STEP !== 'tt' && status === 'replaced') { body.z = S.z; if (S.usePoints) body.points = S.pts; }
+    const res = await api(`case/${encodeURIComponent(S.info.case)}/decide`, body);
+    toast(STEP === 'tt' ? `${S.info.case}: ${status.replace(/_/g, ' ')} · TT-TG ${fmt(res.values.TT_TG_mm)} mm`
+        : STEP === 'tpcl' ? `${S.info.case}: line ${status} · KRA ${fmt(res.values.KRA_deg)}°`
+        : `${S.info.case}: cartilage sulcus ${status} · sulcus angle ${fmt(res.values.sulcus_angle_deg)}°`);
+    await loadState(true);
+    const nextIdx = S.state.cases.findIndex((c, k) => k > S.idx && c.status === 'unreviewed');
+    if (nextIdx >= 0) await openCase(nextIdx);
+    else { S.info.review = {tt: res.review, tpcl: res.tpcl_review, sulcus: res.sulcus_review}[STEP];
+           S.info.sulcus_review = res.sulcus; S.values = res.values; S.pts = [];
+           if (STEP === 'tt' && status === 'accepted') { S.mine = S.info.auto_point.slice(); S.mineSrc = null; } renderInfo(); draw(); }
+  } catch (e) { toast('Error: ' + e.message); }
+  S.busy = false;
+}
+
+async function clearReview() {
+  const res = await api(`case/${encodeURIComponent(S.info.case)}/clear`, {step: STEP});
+  S.info.review = null; S.mine = null; S.mineSrc = null; S.pts = []; S.values = res.values; await loadState(true); renderInfo(); draw();
+  toast('Decision undone');
+}
+
+async function watchLoading() {
+  // "n of N scans ready" in the header while the background loading runs
+  clearTimeout(S.loadTimer);
+  const j = await api('loaded').catch(() => null);
+  if (!j) return;
+  $('loadMsg').textContent = j.loaded < j.total ? `loading scans ${j.loaded}/${j.total}…` : '';
+  if (j.loaded < j.total) S.loadTimer = setTimeout(watchLoading, 1500);
+}
+
+function setZ(z) { S.dirZ = Math.sign(z - S.z) || S.dirZ; S.z = Math.max(zlo(), Math.min(S.info.shape[2] - 1, z)); if (STEP !== 'tt') renderInfo(); draw(); }
+function setX(x) { S.dirX = Math.sign(x - S.x) || S.dirX; S.x = Math.max(0, Math.min(S.info.shape[0] - 1, x)); draw(); }
+
+// Axial view: a click places a point; a drag pans; Ctrl+wheel zooms at the cursor; wheel scrolls slices.
+function axialVoxel(e) {
+  const r = $('axial').getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  return S.fromA((e.clientX - r.left) * dpr, (e.clientY - r.top) * dpr);
+}
+$('axial').addEventListener('mousedown', e => {
+  if (!S.fromA || e.button !== 0) return;
+  S.drag = {x: e.clientX, y: e.clientY, center: S.center.slice(), moved: false, v0: axialVoxel(e)};
+});
+window.addEventListener('mousemove', e => {
+  const d = S.drag; if (!d) return;
+  if (!d.moved && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 5) return;
+  d.moved = true; $('axial').classList.add('panning');
+  S.center = d.center; const v = axialVoxel(e);          // voxel under the cursor with the original centre
+  S.center = [d.center[0] - (v[0] - d.v0[0]), d.center[1] - (v[1] - d.v0[1])];
+  draw();
+});
+window.addEventListener('mouseup', e => {
+  const d = S.drag; if (!d) return;
+  S.drag = null; $('axial').classList.remove('panning');
+  if (!d.moved && e.target === $('axial')) axialClick(e);
+});
+
+function axialClick(e) {
+  if (!S.fromA) return;
+  const [x, y] = axialVoxel(e);
+  if (STEP !== 'tt') {
+    if (S.pts.length === NPTS[STEP] || (S.pts.length && S.pts.z !== S.z)) S.pts = [];
+    S.pts.push([Math.round(x), Math.round(y)]); S.pts.z = S.z;
+    renderInfo(); draw(); return;
+  }
+  // the axial scan is finer than the segmentation: keep its point sub-voxel
+  S.mine = S.src === 'axial' ? [+x.toFixed(2), +y.toFixed(2), S.z] : [Math.round(x), Math.round(y), S.z];
+  S.mineSrc = S.src === 'axial' ? 'axial' : null;
+  S.x = Math.round(x);
+  renderInfo(); draw();
+}
+$('sagittal').addEventListener('click', e => {
+  if (!S.fromS) return;
+  const r = e.target.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  const [yr, z] = S.fromS((e.clientX - r.left) * dpr, (e.clientY - r.top) * dpr);
+  const y = S.src === 'axial' ? +yr.toFixed(2) : Math.round(yr);
+  if (z < zlo() || z >= S.info.shape[2]) return;
+  if (STEP !== 'tt') { setZ(z); renderInfo(); return; }
+  S.mine = [S.x, y, z]; S.mineSrc = S.src === 'axial' ? 'axial' : null; S.z = z;
+  renderInfo(); draw();
+});
+$('axial').addEventListener('wheel', e => {
+  e.preventDefault();
+  if (e.ctrlKey || e.metaKey) { const [x, y] = axialVoxel(e); zoomBy(e.deltaY < 0 ? 1.15 : 1 / 1.15, x, y); }
+  else setZ(S.z + (e.deltaY < 0 ? 1 : -1));
+}, {passive: false});
+$('sagittal').addEventListener('wheel', e => { e.preventDefault(); setX(S.x + (e.deltaY < 0 ? 1 : -1)); }, {passive: false});
+$('zslider').addEventListener('input', e => setZ(+e.target.value));
+$('xslider').addEventListener('input', e => setX(+e.target.value));
+$('accept').onclick = () => decide('accepted');
+$('useMine').onclick = () => decide('replaced');
+$('notInView').onclick = () => decide('not_in_view');
+$('misaligned').onclick = () => decide('misaligned');
+$('srcDixon').onclick = () => setSrc('dixon');
+$('srcAxial').onclick = () => setSrc('axial');
+$('clear').onclick = clearReview;
+$('acceptLine').onclick = () => decide('accepted');
+$('useSlice').onclick = () => { S.usePoints = false; decide('replaced'); };
+$('usePoints').onclick = () => { if (S.pts.length === NPTS[STEP]) { S.usePoints = true; S.z = S.pts.z; decide('replaced'); } };
+$('prev').onclick = () => openCase(S.idx - 1);
+$('next').onclick = () => openCase(S.idx + 1);
+$('rebuild').onclick = async () => { try { await api('measure', {}); poll(); } catch (e) { toast(e.message); } };
+async function poll() { await loadState(true); if (S.state.job.running) setTimeout(poll, 2000); }
+S.segOn = true; S.segOpacity = 0.2;
+$('segOpacity').addEventListener('input', e => { S.segOpacity = e.target.value / 100; S.segOn = true; draw(); });
+window.addEventListener('resize', () => draw());
+document.addEventListener('keydown', e => {
+  if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+  if (location.hash.endsWith('-prescreen') && (e.key === 's' || e.key === 'S')) { $('psSeg').checked = !$('psSeg').checked; drawTiles(); return; }
+  if (!location.hash.endsWith('-review') || !S.info) return;
+  const k = e.key;
+  if (k === 's' || k === 'S') { S.segOn = !S.segOn; draw(); return; }
+  if (k === 'ArrowUp') { e.preventDefault(); setZ(S.z + 1); }
+  else if (k === 'ArrowDown') { e.preventDefault(); setZ(S.z - 1); }
+  else if (k === 'ArrowLeft') { e.preventDefault(); setX(S.x - 1); }
+  else if (k === 'ArrowRight') { e.preventDefault(); setX(S.x + 1); }
+  else if (k === 'a' || k === 'A') { if (STEP === 'tt' || autoOf(S.info)) decide('accepted'); }
+  else if (STEP === 'tt' && (k === 'n' || k === 'N')) decide('not_in_view');
+  else if (STEP === 'tt' && (k === 'v' || k === 'V') && hasAxial()) setSrc(S.src === 'axial' ? 'dixon' : 'axial');
+  else if (STEP === 'tt' && (k === 'm' || k === 'M') && S.src === 'axial') decide('misaligned');
+  else if (STEP === 'tt' && k === 'Enter' && S.mine) decide('replaced');
+  else if (STEP !== 'tt' && k === 'Enter' && S.preview.get(S.z)) { S.usePoints = false; decide('replaced'); }
+  else if (STEP !== 'tt' && (k === 'p' || k === 'P') && S.pts.length === NPTS[STEP]) { S.usePoints = true; S.z = S.pts.z; decide('replaced'); }
+  else if (STEP !== 'tt' && k === 'Escape') { S.pts = []; renderInfo(); draw(); }
+  else if (k === 'j' || k === 'J') openCase(S.idx + 1);
+  else if (k === 'k' || k === 'K') openCase(S.idx - 1);
+  else if ((k === 'g' || k === 'G') && STEP === 'tt' && S.info.auto_point) { S.x = S.info.auto_point[0]; setZ(S.info.auto_point[2]); }
+  else if ((k === 'g' || k === 'G') && STEP !== 'tt' && autoOf(S.info)) setZ(autoOf(S.info).z);
+  else if (k === '+' || k === '=') zoomBy(1.25);
+  else if (k === '-') zoomBy(1 / 1.25);
+});
+
+// ---------------------------------------------------------------- setup page
+const P = {project: null, cases: [], browseFor: null, fsPath: null};
+function esc(t) { return String(t ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c])); }
+
+async function loadProject() {
+  const j = await api('project');
+  P.project = j.project; P.cases = j.cases || [];
+  renderProject(j.job);
+  return j;
+}
+
+function renderProject(job) {
+  const p = P.project;
+  document.querySelectorAll('nav.tabs a[data-tab]').forEach(a => a.classList.toggle('off', !p));
+  $('projectCard').hidden = !p;
+  if (!p) return;
+  if (!$('segsDir').value) $('segsDir').value = p.segs_dir || '';
+  if (!$('scansDir').value && p.scans_dir) $('scansDir').value = p.scans_dir;
+  $('projTitle').textContent = p.name;
+  $('projInfo').innerHTML = `
+    <dt>Segmentations</dt><dd>${p.n_cases} in ${esc(p.segs_dir)}</dd>
+    <dt>MRI scans</dt><dd>${p.scans_dir ? `${p.n_scans} of ${p.n_cases} found in ${esc(p.scans_dir)}` : 'none (optional)'}</dd>
+    <dt>Knee sides</dt><dd>${p.n_cases - p.n_missing_side} of ${p.n_cases} known${p.sheet ? ` (also using ${esc(p.sheet)})` : ''}</dd>
+    <dt>Results go to</dt><dd>${esc(p.out)}</dd>`;
+  $('sideAlert').innerHTML = p.n_missing_side
+    ? `<div class="alert warn">Set the knee side for the ${p.n_missing_side} scan(s) listed below before measuring. Your choice is saved, so you'll only be asked once.</div>` : '';
+  // only the scans that need a side, while any do; otherwise every scan, folded away
+  const rows = p.n_missing_side ? P.cases.filter(c => !c.side) : P.cases;
+  $('scanList').open = !!p.n_missing_side;
+  $('scanListSum').textContent = p.n_missing_side ? `Scans without a knee side (${p.n_missing_side})` : `All ${p.n_cases} scans and their knee sides`;
+  $('caseRows').innerHTML = rows.map(c => `
+    <tr class="${c.side ? '' : 'missing'}">
+      <td><b>${esc(c.case)}</b></td>
+      <td><span class="seg" data-case="${esc(c.case)}">
+        <button class="${c.side === 'L' ? 'on' : ''}" data-side="L">L</button><button class="${c.side === 'R' ? 'on' : ''}" data-side="R">R</button></span></td>
+      <td class="muted">${esc(c.side_source || 'needed')}</td>
+      <td>${c.has_scan ? '✓' : '<span class="muted">—</span>'}</td>
+    </tr>`).join('');
+  renderJob(job);
+}
+
+function renderJob(job) {
+  const p = P.project; if (!p || !job) return;
+  const running = job.running, go = $('go');
+  // one button, whatever comes next: set sides, then measure (only what's new or changed), then review
+  go.disabled = running || p.n_missing_side > 0;
+  go.dataset.act = p.n_to_measure ? 'measure' : 'review';
+  go.textContent = running ? 'Measuring…'
+    : p.n_missing_side ? `Set the knee side for ${p.n_missing_side} scan(s) first`
+    : !p.n_to_measure ? 'Start review →'
+    : p.measured ? `Measure ${p.n_to_measure} new or changed scan(s)` : `Measure ${p.n_cases} scans`;
+  $('bar').hidden = !running;
+  $('bar').firstElementChild.style.width = job.total ? `${100 * job.done / job.total}%` : '0';
+  $('jobMsg').textContent = job.error ? 'Failed: ' + job.error
+    : running ? `${job.done} of ${job.total} measured${job.current ? ' · ' + job.current : ''}` : (job.message || '');
+}
+
+$('caseRows').addEventListener('click', async e => {
+  const b = e.target.closest('button[data-side]'); if (!b) return;
+  const c = b.parentElement.dataset.case;
+  try { const j = await api('side', {case: c, side: b.dataset.side}); P.project = j.project; P.cases = j.cases; renderProject(j.job); }
+  catch (err) { toast(err.message); }
+});
+
+async function openProject() {
+  const segs = $('segsDir').value.trim(), scans = $('scansDir').value.trim();
+  if (!segs) { toast('Pick a segmentations folder first'); return; }
+  $('openMsg').textContent = 'Opening…';
+  try {
+    const j = await api('project', {segs_dir: segs, scans_dir: scans || null});
+    P.project = j.project; P.cases = j.cases; renderProject(j.job); $('openMsg').textContent = '';
+    S.state = null; S.info = null;
+  } catch (e) { $('openMsg').textContent = e.message; }
+}
+// a folder typed in (or pasted) opens when you press Enter or leave the field
+for (const id of ['segsDir', 'scansDir']) $(id).addEventListener('change', () => { if ($('segsDir').value.trim()) openProject(); });
+
+$('go').onclick = async () => {
+  if ($('go').dataset.act === 'review') { location.hash = '#tt-prescreen'; return; }
+  try { const job = await api('measure', {}); renderJob(job); pollJob(); } catch (e) { toast(e.message); }
+};
+async function pollJob() {
+  const job = await api('job');
+  if (!job.running) {
+    await loadProject(); renderJob(job);
+    if (job.error) return;
+    toast(job.message || 'Done');
+    if (!P.project.n_to_measure && !P.project.n_missing_side) location.hash = '#tt-prescreen';   // on to the review
+    return;
+  }
+  renderJob(job); setTimeout(pollJob, 1500);
+}
+
+async function loadRecent() {
+  const j = await api('places');
+  P.places = j;
+  $('recent').innerHTML = j.recent.length ? '<div class="muted" style="margin-top:12px">Recent</div>' + j.recent.map((r, i) =>
+    `<a data-i="${i}">${esc(r.segs_dir)}${r.scans_dir ? ' &nbsp;+&nbsp; scans' : ''}</a>`).join('') : '';
+}
+$('recent').addEventListener('click', e => {
+  const a = e.target.closest('a[data-i]'); if (!a) return;
+  const r = P.places.recent[+a.dataset.i];
+  $('segsDir').value = r.segs_dir; $('scansDir').value = r.scans_dir || ''; openProject();
+});
+
+// ---- folder browser
+async function browse(field) {
+  P.browseFor = field;
+  const start = $(field).value.trim() || (field === 'scansDir' && $('segsDir').value.trim()) || '';
+  $('browser').hidden = false;
+  if (!P.places) await loadRecent();
+  $('fsPlaces').innerHTML = P.places.shortcuts.map((s, i) => `<button data-p="${i}">${esc(s.name)}</button>`).join('');
+  await fsList(start || P.places.shortcuts[0].path);
+}
+async function fsList(path) {
+  try {
+    const j = await api('fs?path=' + encodeURIComponent(path));
+    P.fsPath = j.path; P.fsParent = j.parent; $('fsPath').value = j.path;
+    $('fsDirs').innerHTML = j.dirs.map((d, i) => `<div data-i="${i}">📁 ${esc(d.name)}</div>`).join('') || '<div class="muted">no subfolders</div>';
+    P.fsDirs = j.dirs;
+    const bits = [];
+    if (j.n_nrrd) bits.push(`${j.n_nrrd} segmentation file(s)`);
+    if (j.n_nii) bits.push(`${j.n_nii} .nii file(s)`);
+    if (j.n_scan_folders) bits.push(`${j.n_scan_folders} scan folder(s)`);
+    $('fsInfo').textContent = bits.length ? 'This folder: ' + bits.join(', ') : 'This folder has no segmentations or scans';
+  } catch (e) { toast(e.message); }
+}
+document.querySelectorAll('[data-browse]').forEach(b => b.onclick = () => browse(b.dataset.browse));
+$('fsDirs').addEventListener('click', e => { const d = e.target.closest('div[data-i]'); if (d) fsList(P.fsDirs[+d.dataset.i].path); });
+$('fsPlaces').addEventListener('click', e => { const b = e.target.closest('button[data-p]'); if (b) fsList(P.places.shortcuts[+b.dataset.p].path); });
+$('fsUp').onclick = () => P.fsParent && fsList(P.fsParent);
+$('fsGo').onclick = () => fsList($('fsPath').value);
+$('fsPath').addEventListener('keydown', e => { if (e.key === 'Enter') fsList($('fsPath').value); });
+$('fsCancel').onclick = () => { $('browser').hidden = true; };
+$('fsSelect').onclick = async () => {
+  $(P.browseFor).value = P.fsPath; $('browser').hidden = true;
+  if (P.browseFor === 'segsDir' && !$('scansDir').value) {
+    const j = await api('suggest?segs_dir=' + encodeURIComponent(P.fsPath));
+    if (j.scans_dir) { $('scansDir').value = j.scans_dir; toast('Found the matching scans folder'); }
+  }
+  if ($('segsDir').value.trim()) openProject();
+};
+
+// ---------------------------------------------------------------- prescreen
+const PS = {thumbs: {}, sel: null, cases: [], timer: null};
+
+async function openPrescreen() {
+  PS.sel = null; PS.thumbs = {};
+  $('grid').innerHTML = ''; delete $('grid').dataset.order;      // another step's tiles may have had the same order
+  const st = await api(q('state'));
+  PS.cases = st.cases;
+  $('psTitle').textContent = `Click the scans whose ${STEP_NAME[STEP]} needs a closer look.`;
+  $('psDesc').textContent = {
+    tt: 'Each tile: axial (left) and sagittal (right) through the automatic point. Unselected scans get the automatic point accepted.',
+    tpcl: 'Each tile: the tibial slice the automatic line was taken from, with the line. Unselected scans get the automatic line accepted.',
+    sulcus: 'Each tile: the femoral slice the automatic cartilage sulcus was found on (the first, from the top, whose cartilage groove is at least 2 mm deep), with the cartilage facet peaks and sulcus. Unselected scans get the automatic cartilage sulcus accepted.'}[STEP];
+  // load every scan once in the background, so every tile appears
+  api('prefetch', {cases: PS.cases.map(c => c.case), everything: true}).catch(() => {});
+  pollThumbs();
+}
+
+async function pollThumbs() {
+  clearTimeout(PS.timer);
+  if (location.hash !== `#${STEP}-prescreen`) return;
+  const j = await api('thumbs', {have: Object.keys(PS.thumbs), step: STEP}).catch(e => { toast(e.message); return null; });
+  if (!j) return;
+  Object.assign(PS.thumbs, j.thumbs);
+  PS.cases = j.state.cases;
+  if (PS.sel === null) {        // default selection: flagged, or no automatic point
+    PS.sel = new Set(PS.cases.filter(c => c.status === 'unreviewed' && c.flag).map(c => c.case));
+  }
+  for (const [code, t] of Object.entries(j.thumbs)) if (!t.auto && isTodo(code)) PS.sel.add(code);
+  renderGrid();
+  if (j.pending.length) PS.timer = setTimeout(pollThumbs, 1200);
+}
+
+function isTodo(code) { const c = PS.cases.find(x => x.case === code); return c && c.status === 'unreviewed'; }
+
+function renderGrid() {
+  const hide = $('psHideDone').checked;
+  const shown = PS.cases.filter(c => !hide || c.status === 'unreviewed');
+  // flagged first, like the review list
+  shown.sort((a, b) => (b.flag - a.flag) || a.case.localeCompare(b.case));
+  const grid = $('grid');
+  const want = shown.map(c => c.case).join(',');
+  if (grid.dataset.order !== want || grid.children.length !== shown.length) {
+    grid.innerHTML = ''; grid.dataset.order = want;
+    for (const c of shown) {
+      const d = document.createElement('div'); d.className = 'tile loading'; d.dataset.case = c.case;
+      d.innerHTML = `<span>${esc(c.case)} · loading…</span>`;
+      grid.appendChild(d);
+    }
+  }
+  for (const c of shown) {
+    const d = grid.querySelector(`[data-case="${CSS.escape(c.case)}"]`);
+    const t = PS.thumbs[c.case];
+    if (t && d.classList.contains('loading')) {
+      d.classList.remove('loading');
+      const pics = STEP === 'tt' ? '<div class="pics"><canvas data-p="axial"></canvas><canvas data-p="sagittal"></canvas></div>'
+                                 : '<div class="pics one"><canvas data-p="axial"></canvas></div>';
+      const meta = STEP === 'tt'
+        ? `TT-TG ${fmt(c.tt_tg)} mm · tibia ${fmt(t.tibia_length_mm, 0)} mm${t.scan_bottom_visible ? ' · reaches scan bottom' : ''}`
+        : STEP === 'tpcl' ? `KRA ${fmt(c.kra)}° · TTL ${fmt(c.ttl, 2)}${t.auto ? ` · slice ${t.auto.z}` : ''}`
+        : `cartilage sulcus angle ${fmt(t.auto ? t.auto.angle : null)}° · TT-TG ${fmt(c.tt_tg)} mm${t.auto ? ` · slice ${t.auto.z}` : ''}`;
+      d.innerHTML = `<span class="pick">review</span>${pics}
+        <div class="cap"><b>${esc(c.case)}</b><span class="badge ${badgeClass(c)}">${badgeText(c, t)}</span></div>
+        <div class="meta">${c.side === 'R' ? 'Right' : 'Left'} · ${meta}</div>`;
+      d.onclick = () => { if (PS.sel.has(c.case)) PS.sel.delete(c.case); else PS.sel.add(c.case); renderGrid(); };
+      drawTile(d, t);
+    }
+    if (t) { d.classList.toggle('sel', PS.sel.has(c.case)); d.classList.toggle('done', c.status !== 'unreviewed'); }
+  }
+  const {accept, review, waiting} = prescreenPlan();
+  const todo = PS.cases.filter(c => c.status === 'unreviewed').length;
+  $('psCount').textContent = `${todo} without a decision · ${review.length} selected` + (waiting ? ` · ${waiting} still loading` : '');
+  const btn = $('psApply');
+  btn.disabled = waiting > 0 || (!accept.length && !review.length);
+  btn.textContent = waiting ? 'Waiting for all scans to load…'
+    : !accept.length && !review.length ? 'Nothing to do'
+    : !review.length ? `Accept the automatic ${THING[STEP]} for ${accept.length} scan(s)`
+    : accept.length ? `Accept ${accept.length} unselected · review ${review.length} selected →`
+    : `Review ${review.length} selected →`;
+  btn.title = `Unselected scans without a decision get the automatic ${THING[STEP]} accepted; scans that already ` +
+              'have a decision keep it. Selected scans (decided or not) open in the review.';
+}
+
+// What the button will do: accept the automatic point for unselected scans that have no decision yet
+// (and have an automatic point); open every selected scan, decided or not, in the review.
+function prescreenPlan() {
+  const accept = [], review = [];
+  let waiting = 0;
+  for (const c of PS.cases) {
+    const t = PS.thumbs[c.case];
+    if (PS.sel.has(c.case)) review.push(c.case);
+    else if (c.status === 'unreviewed') { if (!t) waiting++; else if (t.auto) accept.push(c.case); }
+  }
+  return {accept, review, waiting};
+}
+
+function badgeClass(c) { return c.status !== 'unreviewed' ? 'b-' + c.status : (c.flag ? 'b-flag' : 'b-unreviewed'); }
+function badgeText(c, t) {
+  if (c.status !== 'unreviewed') return STATUS_TEXT[c.status] || c.status;
+  if (!t.auto) return `no automatic ${THING[STEP]}`;
+  return c.flag ? (c.flag_reason || 'check') : 'to check';
+}
+
+function drawTiles() { document.querySelectorAll('#grid .tile:not(.loading)').forEach(d => drawTile(d, PS.thumbs[d.dataset.case])); }
+
+function drawTile(d, t) {
+  if (!t) return;
+  const seg = $('psSeg').checked, keep = [S.segOn, S.segOpacity];
+  S.segOn = seg; S.segOpacity = 0.25;
+  for (const cv of d.querySelectorAll('canvas')) {
+    const plane = cv.dataset.p, crop = t[plane];
+    const sl = {shape: crop.shape, data: b64bytes(crop.data), scan: crop.scan ? b64bytes(crop.scan) : null};
+    if (!sl.scan && !seg) { sl.scan = null; }
+    const img = labelImage(sl, plane === 'sagittal');
+    const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
+    const g = cv.getContext('2d'); g.fillStyle = '#121212'; g.fillRect(0, 0, cv.width, cv.height);
+    const [sx, sy, sz] = t.spacing, pw = plane === 'axial' ? sx : sy, ph = plane === 'axial' ? sy : sz;
+    const [a, b] = crop.shape, scale = Math.min(cv.width / (a * pw), cv.height / (b * ph));
+    const w = a * pw * scale, h = b * ph * scale, ox = (cv.width - w) / 2, oy = (cv.height - h) / 2;
+    g.imageSmoothingEnabled = true; g.drawImage(img, ox, oy, w, h);
+    if (crop.marker) {
+      const mx = ox + (crop.marker[0] + 0.5) * pw * scale;
+      const my = plane === 'axial' ? oy + (crop.marker[1] + 0.5) * ph * scale : oy + (b - 1 - crop.marker[1] + 0.5) * ph * scale;
+      g.strokeStyle = getVar('--auto'); g.lineWidth = 2 * dpr;
+      g.beginPath(); g.arc(mx, my, 6 * dpr, 0, 2 * Math.PI); g.stroke();
+    }
+    if (crop.line) {        // TPCL: the automatic line, extended, with its two condyle points
+      const P0 = [ox + (crop.line[0][0] + 0.5) * pw * scale, oy + (crop.line[0][1] + 0.5) * ph * scale];
+      const P1 = [ox + (crop.line[1][0] + 0.5) * pw * scale, oy + (crop.line[1][1] + 0.5) * ph * scale];
+      const dx = P1[0] - P0[0], dy = P1[1] - P0[1], n = Math.hypot(dx, dy) || 1, ext = cv.width;
+      g.strokeStyle = getVar('--auto'); g.lineWidth = 2 * dpr;
+      g.beginPath(); g.moveTo(P0[0] - dx / n * ext, P0[1] - dy / n * ext); g.lineTo(P1[0] + dx / n * ext, P1[1] + dy / n * ext); g.stroke();
+      g.fillStyle = getVar('--auto');
+      for (const pt of [P0, P1]) { g.beginPath(); g.arc(pt[0], pt[1], 3.5 * dpr, 0, 2 * Math.PI); g.fill(); }
+    }
+    if (crop.sulcus) {      // sulcus: medial facet peak -> sulcus -> lateral facet peak
+      const pts = crop.sulcus.map(p2 => [ox + (p2[0] + 0.5) * pw * scale, oy + (p2[1] + 0.5) * ph * scale]);
+      g.strokeStyle = g.fillStyle = getVar('--auto'); g.lineWidth = 2 * dpr;
+      g.beginPath(); g.moveTo(...pts[0]); g.lineTo(...pts[1]); g.lineTo(...pts[2]); g.stroke();
+      for (const pt of pts) { g.beginPath(); g.arc(pt[0], pt[1], 3.5 * dpr, 0, 2 * Math.PI); g.fill(); }
+    }
+    if (plane === 'sagittal' && t.scan_bottom_visible) {
+      g.strokeStyle = '#ff5b5b'; g.setLineDash([4 * dpr, 3 * dpr]); g.lineWidth = 1.5 * dpr;
+      g.beginPath(); g.moveTo(ox, oy + h - 1); g.lineTo(ox + w, oy + h - 1); g.stroke(); g.setLineDash([]);
+    }
+  }
+  [S.segOn, S.segOpacity] = keep;
+}
+
+$('psFlagged').onclick = () => { PS.sel = new Set(PS.cases.filter(c => c.status === 'unreviewed' && (c.flag || !(PS.thumbs[c.case] || {}).auto)).map(c => c.case)); renderGrid(); };
+$('psNone').onclick = () => { PS.sel = new Set(); renderGrid(); };
+$('psAll').onclick = () => { PS.sel = new Set(PS.cases.filter(c => c.status === 'unreviewed').map(c => c.case)); renderGrid(); };
+$('psHideDone').onchange = renderGrid;
+$('psSeg').onchange = drawTiles;
+$('psApply').onclick = async () => {
+  const {accept, review} = prescreenPlan();
+  try {
+    if (accept.length) {
+      const r = await api('prescreen/accept', {cases: accept, step: STEP});
+      toast(`Accepted the automatic ${THING[STEP]} for ${r.accepted.length} scan(s)`);
+    }
+    if (review.length) { setFocus(review); location.hash = `#${STEP}-review`; }
+    else { PS.sel = new Set(); await pollThumbs(); }      // nothing to review: stay here, grid refreshed
+  } catch (e) { toast(e.message); }
+};
+
+// ---------------------------------------------------------------- views
+async function route() {
+  // #setup, #<step>-prescreen, #<step>-review (step: tt | tpcl | sulcus); old #prescreen / #review mean the tuberosity
+  if (location.hash === '#prescreen' || location.hash === '#review') { location.replace('#tt-' + location.hash.slice(1)); return; }
+  const m = /^#(tt|tpcl|sulcus)-(prescreen|review)$/.exec(location.hash);
+  const view = m && P.project ? m[2] : null;
+  if (m && STEP !== m[1]) { S.info = null; S.state = null; }
+  if (m) STEP = m[1];
+  $('setupView').hidden = !!view; $('reviewView').hidden = view !== 'review'; $('prescreenView').hidden = view !== 'prescreen';
+  $('tabSetup').classList.toggle('on', !view);
+  document.querySelectorAll('nav.tabs a[data-tab]').forEach(a => a.classList.toggle('on', !!view && a.dataset.tab === `${STEP}-${view}`));
+  document.querySelectorAll('.tabgroup').forEach(g => g.classList.toggle('cur', !!g.querySelector('a.on')));
+  $('rebuild').hidden = view !== 'review'; $('progress').hidden = view !== 'review'; $('rebuildMsg').hidden = view !== 'review';
+  if (view === 'prescreen') { await openPrescreen(); return; }
+  if (view === 'review') {
+    await loadState(false);
+    if (S.state.cases.length && (!S.info || !S.state.cases.some(c => c.case === S.info.case))) await openCase(0);
+    else { renderInfo(); draw(); }
+  } else if (location.hash !== '#setup') history.replaceState(null, '', '#setup');
+}
+window.addEventListener('hashchange', route);
+
+// Check in once a minute: the downloadable app has no window to close, so it quits a while after no page is open.
+setInterval(() => fetch('/api/version').catch(() => {}), 60000);
+// A link in the header when a newer version has been released on GitHub.
+function newerVersion(a, b) {
+  const x = a.split('.').map(Number), y = b.split('.').map(Number);
+  for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0);
+  return false;
+}
+(async () => {
+  try {
+    const v = await api('version');
+    const r = await fetch(`https://api.github.com/repos/${v.repo}/releases/latest`);
+    if (!r.ok) return;
+    const rel = await r.json(), latest = String(rel.tag_name || '').replace(/^v/, '');
+    if (latest && newerVersion(latest, v.version)) {
+      const a = $('update'); a.href = rel.html_url; a.textContent = `Version ${latest} is available`; a.hidden = false;
+    }
+  } catch (e) {}
+})();
+
+(async () => {
+  await loadProject(); loadRecent();
+  if (P.project && P.project.measured === false && /prescreen|review/.test(location.hash)) location.hash = '#setup';
+  route();
+})();
+</script>
+</body>
+</html>
