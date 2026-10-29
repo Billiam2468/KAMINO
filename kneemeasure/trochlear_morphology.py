@@ -138,10 +138,15 @@ def qc_payload(case, lm, result, margin=15):
 
 
 def render_panel(ax, p, fontsize=8):
+    from matplotlib import colormaps
+    from matplotlib.colors import ListedColormap
     for mask, cmap, alpha in ((p['bone'], 'Greens', 0.6), (p['cart'], 'Purples', 0.8)):
+        # solid, pre-mixed with white: the mesh is in true physical coordinates (slightly rotated), and
+        # see-through cells there leave visible seams where they meet. Bone and cartilage don't overlap.
+        c = np.array(colormaps[cmap](1 / 1.5))
+        c[:3] = alpha * c[:3] + (1 - alpha)
         m = mask.astype(float)
-        ax.pcolormesh(p['L'], p['P'], np.ma.masked_where(m == 0, m), cmap=cmap, vmin=0, vmax=1.5,
-                      alpha=alpha, shading='nearest')
+        ax.pcolormesh(p['L'], p['P'], np.ma.masked_where(m == 0, m), cmap=ListedColormap([c]), shading='nearest')
     ax.set_aspect('equal')
     ax.invert_yaxis()
     med, lat, s = p['medial'], p['lateral'], p['sulcus']
