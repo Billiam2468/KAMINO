@@ -503,6 +503,18 @@ call `measure_case`, show the markups, and let a user drag a point. Re-measuring
 edited landmarks would need each `compute` to accept landmark overrides, which isn't built
 yet.
 
+## Working on the code
+
+This repository is **public**: never commit scans, segmentations, results, mapping
+sheets, review files or MRNs. After cloning, turn on the check that stops such commits:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+`.githooks/pre-commit` refuses a commit with data-type files (`.nrrd`, `.nii.gz`, `.csv`,
+...) or numbers shaped like MRNs; `git commit --no-verify` overrides a false alarm.
+
 ## Releasing a new version
 
 1. Set the new version in `kneemeasure/__init__.py` (`__version__ = '0.2.0'`) and commit.
