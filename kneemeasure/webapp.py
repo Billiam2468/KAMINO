@@ -321,8 +321,7 @@ class App:
                  'y_extent': (int(ys.min()), int(ys.max())) if len(ys) else None,
                  'x_extent': (int(xs.min()), int(xs.max())) if len(xs) else None,
                  'troch': troch, 'scan': scan, 'scan_note': scan_note, 'axial': axial, 'axial_note': axial_note}
-        reviews = review_store.load(p.review_file)['cases'].get(code) or {}
-        thumbs = {step: THUMBS[step](entry, reviews.get(key)) for step, key in STEP_KEYS.items()}
+        thumbs = self._make_thumbs(code, entry)
         with self.lock:
             self.cases[code] = entry
             for step, t in thumbs.items():
@@ -330,6 +329,11 @@ class App:
             while len(self.cases) > self.max_cases:
                 self.cases.popitem(last=False)
         return entry
+
+    def _make_thumbs(self, code, entry):
+        """The prescreen crops of every step, showing the decisions made so far."""
+        reviews = review_store.load(self.project.review_file)['cases'].get(code) or {}
+        return {step: THUMBS[step](entry, reviews.get(key)) for step, key in STEP_KEYS.items()}
 
     def prefetch(self, codes, everything=False):
         """Load these cases in the background, in this order, so opening
@@ -358,7 +362,12 @@ class App:
             if project is not self.project:
                 continue
             try:
-                self._case(code)
+                e = self._case(code)
+                if any(code not in t for t in self.thumbs.values()):   # still loaded, tiles cleared (start over)
+                    thumbs = self._make_thumbs(code, e)
+                    with self.lock:
+                        for step, t in thumbs.items():
+                            self.thumbs[step].setdefault(code, t)
             except Exception:
                 pass
 
