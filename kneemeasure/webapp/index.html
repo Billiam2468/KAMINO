@@ -21,7 +21,6 @@
   header input { padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; width: 140px; }
   .progress { color: var(--muted); font-size: 13px; white-space: nowrap; }
   #update { color: var(--accent); font-size: 13px; white-space: nowrap; }
-  #rebuild { white-space: nowrap; }
   button { font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line);
            background: var(--panel); color: var(--text); cursor: pointer; }
   button:hover:not(:disabled) { border-color: #b9b8b1; }
@@ -73,21 +72,35 @@
   .legend { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 12px; color: var(--muted); }
   .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
   .muted { color: var(--muted); font-size: 12px; }
-  nav.tabs { display: flex; gap: 4px; }
-  nav.tabs a { padding: 6px 12px; border-radius: 6px; color: var(--muted); text-decoration: none; white-space: nowrap; }
-  nav.tabs a.on { background: #e8f0fb; color: var(--accent); font-weight: 600; }
-  nav.tabs a.off { pointer-events: none; opacity: .4; }
-  nav.tabs { align-items: center; }
-  #tabSetup { color: var(--text); font-weight: 600; margin-right: 6px; }
-  #tabSetup.on { color: var(--accent); }
-  .tabgroup { display: inline-flex; align-items: center; gap: 2px; padding: 2px 8px 2px 14px;
-              border-left: 1px solid var(--line); white-space: nowrap; }
-  .tabgroup b { font-weight: 600; color: var(--text); margin-right: 6px; }
-  .tabgroup.cur b { color: var(--accent); }
-  .tabgroup a { padding: 3px 9px !important; font-size: 13px; }
+  nav.steps { display: flex; align-items: center; gap: 2px; }
+  nav.steps a { padding: 5px 10px; border-radius: 6px; color: var(--text); text-decoration: none; white-space: nowrap; }
+  nav.steps a.on { background: #e8f0fb; color: var(--accent); font-weight: 600; }
+  nav.steps a.off { pointer-events: none; opacity: .4; }
+  nav.steps .sep { color: #b9b8b1; }
+  nav.steps .st { font-size: 11px; font-weight: 400; color: var(--muted); margin-left: 4px; }
+  nav.steps .st.done { color: var(--ok); }
+  nav.steps .phase { font-size: 11px; font-weight: 400; margin-left: 4px; }
   .view { flex: 1; min-height: 0; }
   .view[hidden] { display: none !important; }
-  #setupView { overflow-y: auto; padding: 24px; }
+  #setupView, #resultsView { overflow-y: auto; padding: 24px; }
+  .card.wide { max-width: 1500px; }
+  .hero { max-width: 980px; margin: 8px auto 26px; text-align: center; }
+  .hero .word { display: flex; justify-content: center; gap: clamp(10px, 3vw, 34px); flex-wrap: wrap; }
+  .hero .word div { display: flex; flex-direction: column; align-items: center; min-width: 56px; }
+  .hero .word b { font-size: clamp(44px, 7vw, 76px); line-height: 1; font-weight: 700; color: var(--accent);
+                  letter-spacing: .02em; }
+  .hero .word span { margin-top: 6px; font-size: 13px; color: var(--muted); }
+  .hero .full { margin-top: 18px; font-size: 16px; }
+  .hero .full b { color: var(--accent); }
+  .hero p { margin: 8px auto 0; color: var(--muted); max-width: 640px; }
+  .hero .ver { margin-top: 10px; font-size: 12px; color: var(--muted); }
+  a.btn { font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel);
+          color: var(--text); text-decoration: none; display: inline-block; }
+  a.btn:hover { border-color: #b9b8b1; }
+  .grids img { width: 100%; display: block; border: 1px solid var(--line); border-radius: 6px; margin-bottom: 12px; background: #fff; }
+  .seg.wrap { flex-wrap: wrap; }
+  .alert.ok { background: #e9f6ee; color: #155c33; }
+  #nextStep { justify-content: center; }
   .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px;
           max-width: 980px; margin: 0 auto 18px; }
   .card h2 { font-size: 16px; margin: 0 0 12px; }
@@ -151,18 +164,26 @@
 <body>
 <header>
   <h1 title="Knee Anatomy Measurements from Imaging and Network Output">KAMINO</h1>
-  <nav class="tabs"><a href="#setup" id="tabSetup">1 &middot; Setup</a>
-    <span class="tabgroup"><b>2 &middot; Tuberosity</b><a href="#tt-prescreen" data-tab="tt-prescreen">prescreen</a><a href="#tt-review" data-tab="tt-review">review</a></span>
-    <span class="tabgroup" title="Tibial posterior condylar line"><b>3 &middot; Tibial line</b><a href="#tpcl-prescreen" data-tab="tpcl-prescreen">prescreen</a><a href="#tpcl-review" data-tab="tpcl-review">review</a></span>
-    <span class="tabgroup"><b>4 &middot; Cartilage sulcus</b><a href="#sulcus-prescreen" data-tab="sulcus-prescreen">prescreen</a><a href="#sulcus-review" data-tab="sulcus-review">review</a></span></nav>
+  <nav class="steps" id="steps"><a href="#setup" data-step="setup">1 &middot; Setup</a><span class="sep">&rsaquo;</span>
+    <a href="#tt-prescreen" data-step="tt">2 &middot; Tuberosity<span class="phase"></span><span class="st"></span></a><span class="sep">&rsaquo;</span>
+    <a href="#tpcl-prescreen" data-step="tpcl" title="Tibial posterior condylar line">3 &middot; Tibial line<span class="phase"></span><span class="st"></span></a><span class="sep">&rsaquo;</span>
+    <a href="#sulcus-prescreen" data-step="sulcus">4 &middot; Cartilage sulcus<span class="phase"></span><span class="st"></span></a><span class="sep">&rsaquo;</span>
+    <a href="#results" data-step="results">5 &middot; Results</a></nav>
   <span class="progress" id="progress"></span>
   <span class="spacer"></span>
   <span class="muted" id="loadMsg"></span>
-  <span class="muted" id="rebuildMsg"></span>
   <a id="update" hidden target="_blank" rel="noopener" title="Download the new version from GitHub"></a>
-  <button id="rebuild" hidden title="Re-run the measurements so the spreadsheet, statistics and QC images in the results folder include your decisions. Only reviewed scans are re-measured.">Update result files</button>
 </header>
 <section class="view" id="setupView" hidden>
+  <div class="hero">
+    <div class="word">
+      <div><b>K</b><span>Knee</span></div><div><b>A</b><span>Anatomy</span></div><div><b>M</b><span>Measurements</span></div>
+      <div><b>I</b><span>Imaging</span></div><div><b>N</b><span>Network</span></div><div><b>O</b><span>Output</span></div>
+    </div>
+    <div class="full"><b>K</b>nee <b>A</b>natomy <b>M</b>easurements from <b>I</b>maging and <b>N</b>etwork <b>O</b>utput</div>
+    <p>Knee MRI measurements from labeled segmentations, with a quick check of the landmarks a person should see. Everything stays on this computer.</p>
+    <div class="ver" id="heroVer"></div>
+  </div>
   <div class="card">
     <h2>Folders</h2>
     <div class="field"><label for="segsDir">Segmentations</label><input id="segsDir" placeholder="folder with the .nrrd segmentations"><button data-browse="segsDir">Browse&hellip;</button></div>
@@ -179,6 +200,8 @@
       <button class="primary" id="go"></button>
       <div class="bar" id="bar" hidden><div></div></div>
       <span class="muted" id="jobMsg"></span>
+      <span class="grow" style="flex:1"></span>
+      <button class="bad" id="startOver" hidden title="Remove every hand-placed landmark decision for this folder, so each scan goes back to its automatic landmarks. Knee sides are kept, and a backup copy of the decisions file is kept next to it."></button>
     </div>
     <details id="scanList"><summary class="muted" id="scanListSum"></summary>
       <table class="cases"><thead><tr><th>Scan</th><th>Knee side</th><th>Side from</th><th>MRI scan</th></tr></thead><tbody id="caseRows"></tbody></table>
@@ -199,6 +222,26 @@
     <button class="primary" id="psApply" disabled></button>
   </div>
   <div id="grid"></div>
+</section>
+<section class="view" id="resultsView" hidden>
+  <div class="card">
+    <h2>Results</h2>
+    <dl class="kv" id="resSteps"></dl>
+    <div id="resStatus" style="margin-top:12px"></div>
+    <div class="row" style="margin:14px 0 6px">
+      <button class="primary" id="resUpdate"></button>
+      <a class="btn" id="dlMeas" href="/api/download/measurements" title="One row per scan with every measurement, the knee side and each landmark's decision">Download measurements.csv</a>
+      <div class="bar" id="resBar" hidden><div></div></div>
+      <span class="muted" id="resJob"></span>
+    </div>
+  </div>
+  <div class="card wide">
+    <h2>QC grids</h2>
+    <div class="muted" style="margin-bottom:10px">Every scan's measurement drawn on its segmentation. Click a page to open it full size.</div>
+    <div class="row" style="margin-bottom:12px"><span class="seg wrap" id="resGridPick"></span><span style="flex:1"></span>
+      <a class="btn" id="dlQC" href="/api/download/qc" title="Every page of every grid, as PNG images in a zip file">Download all grids (.zip)</a></div>
+    <div class="grids" id="resGrids"></div>
+  </div>
 </section>
 <div class="modal" id="browser" hidden>
   <div class="box">
@@ -246,9 +289,9 @@
       <button id="clear" title="Remove the decision for this scan; it goes back to the automatic one and 'to review'">Undo decision</button>
     </div>
     <textarea id="note" placeholder="Note (optional)"></textarea>
-    <div class="actions" style="flex-direction:row">
-      <button id="prev">&larr; Previous <kbd>K</kbd></button>
-      <button id="next">Next &rarr; <kbd>J</kbd></button>
+    <div class="actions">
+      <button id="nextStep"></button>
+      <div class="muted" id="nextStepNote"></div>
     </div>
     <div id="segCtl" hidden>
       <label class="muted">Segmentation over the scan <kbd>S</kbd></label>
@@ -267,7 +310,8 @@
     <div class="muted help">Mouse wheel over a view: scroll that view's slices<br>
       <kbd>&uarr;</kbd> <kbd>&darr;</kbd>: axial slices &middot; <kbd>&larr;</kbd> <kbd>&rarr;</kbd>: sagittal slices<br>
       <kbd>G</kbd>: go to the automatic one &middot; <kbd>+</kbd> <kbd>&minus;</kbd>: zoom<br>
-      <kbd>V</kbd>: Dixon / axial scan (tuberosity, when there's an axial)<br>
+      <kbd>J</kbd> <kbd>K</kbd>: next / previous scan in the list<br>
+      <kbd>V</kbd>: Dixon / axial scan (tuberosity, when there's an axial). Scrolling below the Dixon's bottom slice switches to the axial scan.<br>
       The white lines show where the other view's slice cuts through.</div>
   </aside>
 </main>
@@ -287,6 +331,9 @@ const STEP_NAME = {tt: 'tuberosity', tpcl: 'tibial posterior line', sulcus: 'car
 const NPTS = {tpcl: 2, sulcus: 3};
 const THING = {tt: 'point', tpcl: 'line', sulcus: 'cartilage sulcus'};
 const STATUS_TEXT = {accepted: 'accepted', replaced: 'replaced', not_in_view: 'not in view', misaligned: "doesn't line up"};
+// the steps in order: each QC step goes prescreen -> review -> the next step; the last one leads to the results
+const NEXT = {tt: '#tpcl-prescreen', tpcl: '#sulcus-prescreen', sulcus: '#results'};
+const NEXT_NAME = {tt: 'the tibial line', tpcl: 'the cartilage sulcus', sulcus: 'the results'};
 // tuberosity step: S.src = 'axial' shows the axial series (see AxialDisplay) instead of the Dixon; its slices go
 // below the segmentation's slice 0, down to zlo()
 function hasAxial() { return STEP === 'tt' && S.info && S.info.axial_z_below !== null && S.info.axial_z_below !== undefined; }
@@ -329,9 +376,18 @@ async function loadState(keepIdx) {
   renderList();
   const done = S.state.cases.filter(c => c.status !== 'unreviewed').length;
   $('progress').textContent = `${S.state.pull} · ${STEP_NAME[STEP]} · ${done} of ${S.state.cases.length} decided`;
-  const rb = S.state.job;
-  $('rebuildMsg').textContent = rb.error ? 'Updating the result files failed: ' + rb.error : (rb.running ? `Updating the result files ${rb.done}/${rb.total}…` : '');
-  $('rebuild').disabled = rb.running;
+  renderNextStep();
+  refreshSteps();
+}
+
+// The review's way on: one button to the next step, highlighted once every scan in the list has a decision.
+function renderNextStep() {
+  const left = S.state.cases.filter(c => c.status === 'unreviewed').length, b = $('nextStep');
+  b.textContent = `Go on to ${NEXT_NAME[STEP]} →`;
+  b.className = left ? '' : 'primary';
+  $('nextStepNote').textContent = left
+    ? `${left} scan(s) here still have no decision; they keep the automatic ${THING[STEP]}.`
+    : `Every scan here has a decision.`;
 }
 
 function renderList() {
@@ -759,11 +815,14 @@ async function decide(status) {
         : STEP === 'tpcl' ? `${S.info.case}: line ${status} · KRA ${fmt(res.values.KRA_deg)}°`
         : `${S.info.case}: cartilage sulcus ${status} · sulcus angle ${fmt(res.values.sulcus_angle_deg)}°`);
     await loadState(true);
-    const nextIdx = S.state.cases.findIndex((c, k) => k > S.idx && c.status === 'unreviewed');
+    const todo = k => S.state.cases[k] && S.state.cases[k].status === 'unreviewed';
+    let nextIdx = S.state.cases.findIndex((c, k) => k > S.idx && todo(k));
+    if (nextIdx < 0) nextIdx = S.state.cases.findIndex((c, k) => todo(k));
     if (nextIdx >= 0) await openCase(nextIdx);
     else { S.info.review = {tt: res.review, tpcl: res.tpcl_review, sulcus: res.sulcus_review}[STEP];
            S.info.sulcus_review = res.sulcus; S.values = res.values; S.pts = [];
-           if (STEP === 'tt' && status === 'accepted') { S.mine = S.info.auto_point.slice(); S.mineSrc = null; } renderInfo(); draw(); }
+           if (STEP === 'tt' && status === 'accepted') { S.mine = S.info.auto_point.slice(); S.mineSrc = null; } renderInfo(); draw();
+           toast(`${$('toast').textContent} · every scan here has a decision`); }
   } catch (e) { toast('Error: ' + e.message); }
   S.busy = false;
 }
@@ -783,7 +842,11 @@ async function watchLoading() {
   if (j.loaded < j.total) S.loadTimer = setTimeout(watchLoading, 1500);
 }
 
-function setZ(z) { S.dirZ = Math.sign(z - S.z) || S.dirZ; S.z = Math.max(zlo(), Math.min(S.info.shape[2] - 1, z)); if (STEP !== 'tt') renderInfo(); draw(); }
+function setZ(z) {
+  // scrolling down past the Dixon's bottom slice carries on into the axial series, which reaches further down
+  if (z < 0 && S.src === 'dixon' && hasAxial()) { setSrc('axial'); toast('Below the Dixon: showing the axial scan'); }
+  S.dirZ = Math.sign(z - S.z) || S.dirZ; S.z = Math.max(zlo(), Math.min(S.info.shape[2] - 1, z)); if (STEP !== 'tt') renderInfo(); draw();
+}
 function setX(x) { S.dirX = Math.sign(x - S.x) || S.dirX; S.x = Math.max(0, Math.min(S.info.shape[0] - 1, x)); draw(); }
 
 // Axial view: a click places a point; a drag pans; Ctrl+wheel zooms at the cursor; wheel scrolls slices.
@@ -851,10 +914,7 @@ $('clear').onclick = clearReview;
 $('acceptLine').onclick = () => decide('accepted');
 $('useSlice').onclick = () => { S.usePoints = false; decide('replaced'); };
 $('usePoints').onclick = () => { if (S.pts.length === NPTS[STEP]) { S.usePoints = true; S.z = S.pts.z; decide('replaced'); } };
-$('prev').onclick = () => openCase(S.idx - 1);
-$('next').onclick = () => openCase(S.idx + 1);
-$('rebuild').onclick = async () => { try { await api('measure', {}); poll(); } catch (e) { toast(e.message); } };
-async function poll() { await loadState(true); if (S.state.job.running) setTimeout(poll, 2000); }
+$('nextStep').onclick = () => { location.hash = NEXT[STEP]; };
 S.segOn = true; S.segOpacity = 0.2;
 $('segOpacity').addEventListener('input', e => { S.segOpacity = e.target.value / 100; S.segOn = true; draw(); });
 window.addEventListener('resize', () => draw());
@@ -897,7 +957,7 @@ async function loadProject() {
 
 function renderProject(job) {
   const p = P.project;
-  document.querySelectorAll('nav.tabs a[data-tab]').forEach(a => a.classList.toggle('off', !p));
+  document.querySelectorAll('#steps a:not([data-step=setup])').forEach(a => a.classList.toggle('off', !p || !p.measured));
   $('projectCard').hidden = !p;
   if (!p) return;
   if (!$('segsDir').value) $('segsDir').value = p.segs_dir || '';
@@ -907,7 +967,10 @@ function renderProject(job) {
     <dt>Segmentations</dt><dd>${p.n_cases} in ${esc(p.segs_dir)}</dd>
     <dt>MRI scans</dt><dd>${p.scans_dir ? `${p.n_scans} of ${p.n_cases} found in ${esc(p.scans_dir)}` : 'none (optional)'}</dd>
     <dt>Knee sides</dt><dd>${p.n_cases - p.n_missing_side} of ${p.n_cases} known${p.sheet ? ` (also using ${esc(p.sheet)})` : ''}</dd>
-    <dt>Results go to</dt><dd>${esc(p.out)}</dd>`;
+    <dt>Decisions</dt><dd>${p.n_decisions ? `${p.n_decisions} hand-checked landmark(s), saved in ${esc(p.root)}` : 'none yet'}</dd>
+    <dt>Results</dt><dd>kept by the app: download them on the Results page</dd>`;
+  $('startOver').hidden = !p.n_decisions;
+  $('startOver').textContent = `Start over (remove ${p.n_decisions} decision${p.n_decisions === 1 ? '' : 's'})`;
   $('sideAlert').innerHTML = p.n_missing_side
     ? `<div class="alert warn">Set the knee side for the ${p.n_missing_side} scan(s) listed below before measuring. Your choice is saved, so you'll only be asked once.</div>` : '';
   // only the scans that need a side, while any do; otherwise every scan, folded away
@@ -941,6 +1004,20 @@ function renderJob(job) {
     : running ? `${job.done} of ${job.total} measured${job.current ? ' · ' + job.current : ''}` : (job.message || '');
 }
 
+$('startOver').onclick = async () => {
+  const p = P.project;
+  if (!confirm(`Remove all ${p.n_decisions} hand-checked landmark decisions for ${p.name}?\n\nEvery scan goes back to its ` +
+               'automatic tuberosity, tibial line and cartilage sulcus. Knee sides are kept. A backup copy of the ' +
+               'decisions file is kept next to it.')) return;
+  try {
+    const j = await api('start_over', {});
+    for (const step of ['tt', 'tpcl', 'sulcus'])              // forget the prescreen picks
+      try { localStorage.removeItem('km_focus_' + step + '_' + p.root); } catch (e) {}
+    S.state = null; S.info = null;
+    P.project = j.project; P.cases = j.cases; renderProject(j.job); refreshSteps();
+    toast(`Removed ${j.removed} decisions` + (j.backup ? ` · backup: ${j.backup.split(/[\\/]/).pop()}` : ''));
+  } catch (e) { toast(e.message); }
+};
 $('caseRows').addEventListener('click', async e => {
   const b = e.target.closest('button[data-side]'); if (!b) return;
   const c = b.parentElement.dataset.case;
@@ -1100,14 +1177,15 @@ function renderGrid() {
   const todo = PS.cases.filter(c => c.status === 'unreviewed').length;
   $('psCount').textContent = `${todo} without a decision · ${review.length} selected` + (waiting ? ` · ${waiting} still loading` : '');
   const btn = $('psApply');
-  btn.disabled = waiting > 0 || (!accept.length && !review.length);
+  btn.disabled = waiting > 0;
   btn.textContent = waiting ? 'Waiting for all scans to load…'
-    : !accept.length && !review.length ? 'Nothing to do'
-    : !review.length ? `Accept the automatic ${THING[STEP]} for ${accept.length} scan(s)`
+    : !accept.length && !review.length ? `Go on to ${NEXT_NAME[STEP]} →`
+    : !review.length ? `Accept ${accept.length} and go on to ${NEXT_NAME[STEP]} →`
     : accept.length ? `Accept ${accept.length} unselected · review ${review.length} selected →`
     : `Review ${review.length} selected →`;
   btn.title = `Unselected scans without a decision get the automatic ${THING[STEP]} accepted; scans that already ` +
-              'have a decision keep it. Selected scans (decided or not) open in the review.';
+              `have a decision keep it. Selected scans (decided or not) open in the review; with none selected, ` +
+              `this goes straight on to ${NEXT_NAME[STEP]}.`;
 }
 
 // What the button will do: accept the automatic point for unselected scans that have no decision yet
@@ -1190,23 +1268,101 @@ $('psApply').onclick = async () => {
       toast(`Accepted the automatic ${THING[STEP]} for ${r.accepted.length} scan(s)`);
     }
     if (review.length) { setFocus(review); location.hash = `#${STEP}-review`; }
-    else { PS.sel = new Set(); await pollThumbs(); }      // nothing to review: stay here, grid refreshed
+    else location.hash = NEXT[STEP];                     // nothing to review: on to the next step
   } catch (e) { toast(e.message); }
 };
 
+// ---------------------------------------------------------------- step bar
+// Each QC step's link shows how many scans still have no decision (or a tick).
+async function refreshSteps() {
+  if (!P.project || !P.project.measured) return;
+  const j = await api('steps').catch(() => null); if (!j) return;
+  for (const [step, n] of Object.entries(j)) {
+    const st = document.querySelector(`#steps a[data-step="${step}"] .st`), left = n.total - n.decided;
+    st.textContent = left ? `${left} to do` : '✓'; st.classList.toggle('done', !left);
+    st.title = `${n.decided} of ${n.total} scans have a decision`;
+  }
+}
+
+// ---------------------------------------------------------------- results
+const R = {data: null, grid: null, timer: null};
+const STEP_TITLE = {tt: 'Tuberosity', tpcl: 'Tibial line', sulcus: 'Cartilage sulcus'};
+
+async function openResults() {
+  try { R.data = await api('results'); } catch (e) { toast(e.message); return; }
+  renderResults(); renderGrids();
+  if (R.data.job.running) pollResults();
+}
+
+function renderResults() {
+  const d = R.data, job = d.job, running = job.running;
+  $('resSteps').innerHTML = Object.entries(d.steps).map(([k, n]) => {
+    const parts = Object.entries(n.by_status).map(([st, c]) => `${c} ${STATUS_TEXT[st] || st}`), left = n.total - n.decided;
+    return `<dt><a href="#${k}-prescreen">${STEP_TITLE[k]}</a></dt><dd>${n.decided} of ${n.total} decided` +
+      (parts.length ? ` (${parts.join(', ')})` : '') + (left ? ` · ${left} keep the automatic ${THING[k]}` : '') + '</dd>';
+  }).join('');
+  const when = d.measured_at ? new Date(d.measured_at * 1000).toLocaleString() : '';
+  const st = job.error ? ['warn', 'Updating failed: ' + esc(job.error)]
+    : running ? null
+    : d.n_to_measure ? ['warn', `${d.n_to_measure} scan(s) are new or changed since the last run: update the results to measure them.`]
+    : d.old_code ? ['warn', `These results were made (${when}) by an earlier version of the measurement code: update them so the measurements and QC grids match this version.`]
+    : d.stale ? ['warn', `Decisions changed after these results were made (${when}): update them so the measurements and QC grids include them.`]
+    : !d.measured_at ? ['warn', 'Nothing measured yet: update the results.']
+    : ['ok', `Up to date with your decisions (made ${when}).`];
+  $('resStatus').innerHTML = st ? `<div class="alert ${st[0]}">${st[1]}</div>` : '';
+  $('resUpdate').disabled = running;
+  $('resUpdate').textContent = running ? 'Updating…' : 'Update results';
+  $('resUpdate').title = 'Re-run the measurements with every decision, then redo the QC grids. Only scans whose segmentation or decisions changed are re-measured.';
+  $('dlMeas').hidden = !d.measured_at || running; $('dlQC').hidden = !d.grids.length || running;
+  $('resBar').hidden = !running;
+  $('resBar').firstElementChild.style.width = job.total ? `${100 * job.done / job.total}%` : '0';
+  $('resJob').textContent = running ? `${job.done} of ${job.total} measured${job.current ? ' · ' + job.current : ''}` : '';
+}
+
+function renderGrids() {
+  const grids = R.data.grids;
+  if (!grids.some(g => g.key === R.grid)) R.grid = grids.length ? grids[0].key : null;
+  $('resGridPick').innerHTML = grids.map(g => `<button data-k="${g.key}" class="${g.key === R.grid ? 'on' : ''}">${esc(g.title)}</button>`).join('');
+  const g = grids.find(x => x.key === R.grid);
+  $('resGrids').innerHTML = !g ? '<div class="muted">No QC grids yet: update the results to make them.</div>'
+    : g.pages.map(pg => { const src = `/api/qc/${encodeURIComponent(pg.name)}?v=${pg.v}`;
+        return `<a href="${src}" target="_blank" rel="noopener"><img loading="lazy" alt="${esc(g.title)}" src="${src}"></a>`; }).join('');
+}
+
+async function pollResults() {
+  clearTimeout(R.timer);
+  if (location.hash !== '#results') return;
+  const job = await api('job').catch(() => null); if (!job) return;
+  R.data.job = job;
+  if (job.running) { renderResults(); R.timer = setTimeout(pollResults, 1500); return; }
+  await loadProject(); await openResults(); refreshSteps();
+  toast(job.error ? 'Updating the results failed' : 'Results updated');
+}
+$('resUpdate').onclick = async () => {
+  try { R.data.job = await api('measure', {}); renderResults(); R.timer = setTimeout(pollResults, 1000); }
+  catch (e) { toast(e.message); }
+};
+$('resGridPick').onclick = e => { const b = e.target.closest('button[data-k]'); if (b) { R.grid = b.dataset.k; renderGrids(); } };
+
 // ---------------------------------------------------------------- views
 async function route() {
-  // #setup, #<step>-prescreen, #<step>-review (step: tt | tpcl | sulcus); old #prescreen / #review mean the tuberosity
+  // #setup, #<step>-prescreen, #<step>-review (step: tt | tpcl | sulcus), #results; old #prescreen / #review mean the tuberosity
   if (location.hash === '#prescreen' || location.hash === '#review') { location.replace('#tt-' + location.hash.slice(1)); return; }
   const m = /^#(tt|tpcl|sulcus)-(prescreen|review)$/.exec(location.hash);
-  const view = m && P.project ? m[2] : null;
+  const ok = P.project && P.project.measured;
+  const view = ok && location.hash === '#results' ? 'results' : (m && ok ? m[2] : null);
   if (m && STEP !== m[1]) { S.info = null; S.state = null; }
   if (m) STEP = m[1];
   $('setupView').hidden = !!view; $('reviewView').hidden = view !== 'review'; $('prescreenView').hidden = view !== 'prescreen';
-  $('tabSetup').classList.toggle('on', !view);
-  document.querySelectorAll('nav.tabs a[data-tab]').forEach(a => a.classList.toggle('on', !!view && a.dataset.tab === `${STEP}-${view}`));
-  document.querySelectorAll('.tabgroup').forEach(g => g.classList.toggle('cur', !!g.querySelector('a.on')));
-  $('rebuild').hidden = view !== 'review'; $('progress').hidden = view !== 'review'; $('rebuildMsg').hidden = view !== 'review';
+  $('resultsView').hidden = view !== 'results';
+  const cur = !view ? 'setup' : view === 'results' ? 'results' : STEP;
+  document.querySelectorAll('#steps a').forEach(a => {
+    a.classList.toggle('on', a.dataset.step === cur);
+    const ph = a.querySelector('.phase'); if (ph) ph.textContent = a.dataset.step === cur ? ` · ${view}` : '';
+  });
+  $('progress').hidden = view !== 'review';
+  refreshSteps();
+  if (view === 'results') { await openResults(); return; }
   if (view === 'prescreen') { await openPrescreen(); return; }
   if (view === 'review') {
     await loadState(false);
@@ -1227,6 +1383,7 @@ function newerVersion(a, b) {
 (async () => {
   try {
     const v = await api('version');
+    $('heroVer').textContent = `Version ${v.version}`;
     const r = await fetch(`https://api.github.com/repos/${v.repo}/releases/latest`);
     if (!r.ok) return;
     const rel = await r.json(), latest = String(rel.tag_name || '').replace(/^v/, '');

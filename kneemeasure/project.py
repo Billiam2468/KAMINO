@@ -2,9 +2,13 @@
 A review/measurement project: a segmentations folder, optionally a scans
 folder, and where results and human input are kept.
 
-    <root>/kneemeasure/              results (regenerable)
     <root>/kneemeasure_review.json   human input: knee sides entered in the app and landmark
                                      reviews (never deleted by a rebuild)
+
+The app's results (measurements, QC grids, the rerun cache) are kept in the
+user's cache folder, one folder per <root> (see results_dir), not next to the
+scans: they're regenerable, and the app offers them as downloads. The
+command line's `pull` / `run` still write <pull>/kneemeasure/ (pulls.py).
 
 <root> is the scan pull folder when the segmentations live inside one (an
 ancestor folder containing sorted/), otherwise the segmentations folder's
@@ -18,8 +22,10 @@ Knee side per scan, first found wins:
 Scans with none of these are asked for in the app.
 """
 import csv
+import hashlib
 import json
 import os
+import sys
 
 import nrrd
 
@@ -29,6 +35,25 @@ from .scans import find_scan, laterality_from_nifti
 from .volume import header_laterality, case_name_from_path, parse_side
 
 RECENT_FILE = os.path.join(os.path.expanduser('~'), '.config', 'kneemeasure', 'recent.json')
+
+
+def cache_root():
+    """The user's cache folder for kneemeasure (regenerable files only)."""
+    home = os.path.expanduser('~')
+    if sys.platform == 'win32':
+        base = os.environ.get('LOCALAPPDATA') or os.path.join(home, 'AppData', 'Local')
+    elif sys.platform == 'darwin':
+        base = os.path.join(home, 'Library', 'Caches')
+    else:
+        base = os.environ.get('XDG_CACHE_HOME') or os.path.join(home, '.cache')
+    return os.path.join(base, 'kneemeasure')
+
+
+def results_dir(root):
+    """Where the app keeps one project's results: <cache>/projects/<name>-<hash of the path>."""
+    root = os.path.abspath(root)
+    tag = hashlib.sha1(root.encode('utf-8')).hexdigest()[:10]
+    return os.path.join(cache_root(), 'projects', f'{os.path.basename(root) or "root"}-{tag}')
 SHEET_NAMES = ('mrn_code_mapping.csv',)
 
 
@@ -81,7 +106,7 @@ class Project:
         self.root = root or pull_root(first_dir) or os.path.dirname(os.path.abspath(first_dir))
         self.name = name or os.path.basename(self.root)
         self.scans_dir = scans_dir or None
-        self.out = os.path.join(self.root, 'kneemeasure')
+        self.out = results_dir(self.root)
         self.review_file = os.path.join(self.root, review_store.REVIEW_FILE)
         self.sheet = find_sheet(self.root, self.scans_dir) if sheet == 'auto' else sheet
         self.scans = {c: find_scan(self.scans_dir, c) for c in self.files}

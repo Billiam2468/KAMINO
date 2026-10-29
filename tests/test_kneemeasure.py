@@ -321,7 +321,7 @@ class TestScansAndProject(unittest.TestCase):
             p.set_side('AAAAA', 'R')                                      # entered in app wins
             self.assertEqual(p.sides['BBBBB'], ('R', 'entered in app'))
             self.assertEqual(p.sides['AAAAA'], ('R', 'entered in app'))
-            self.assertEqual(p.out, os.path.join(d, 'kneemeasure'))
+            self.assertFalse(p.out.startswith(d))                       # the app's results stay out of the data folder
 
 
 @unittest.skipUnless(os.path.isdir(DATA), f'segmentation data not found at {DATA}')

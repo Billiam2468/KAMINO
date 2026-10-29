@@ -7,8 +7,8 @@ to install) that opens in the browser. Nothing leaves the machine.
 1. Setup: pick a segmentations folder and (optionally) a scans folder with
    the built-in folder browser. Each scan's knee side is found automatically
    (see project.py) or entered with L/R buttons.
-2. Measure: runs every measurement, with progress. Results go to
-   <root>/kneemeasure/ (see project.py for <root>).
+2. Measure: runs every measurement, with progress. Results go to the
+   user's cache folder (see project.results_dir).
 3. QC, one step per landmark -- the tibial tuberosity, the tibial posterior
    condylar line and the trochlear sulcus (reference slice). Each starts with
    a prescreen grid where you pick the scans to look at closely (the rest get
@@ -17,7 +17,11 @@ to install) that opens in the browser. Nothing leaves the machine.
    scan (sorted/<code>/axial.nii.gz, usually the PD axial) can be shown
    instead of the Dixon: it usually reaches further down the tibia (see
    scans.AxialDisplay). Decisions are saved immediately to
-   <root>/kneemeasure_review.json and applied by every later run.
+   <root>/kneemeasure_review.json and applied by every later run. Each
+   step leads on to the next.
+4. Results: re-run the measurements with the decisions (only what changed),
+   then the QC grids, with downloads of measurements.csv and the grids. Results are kept in the user's cache folder, not next to
+   the scans (see project.results_dir).
 
 `python -m kneemeasure review <pull>` opens a scan pull straight into review.
 """
@@ -25,13 +29,17 @@ import base64
 import csv
 import functools
 import getpass
+import glob
+import io
 import json
 import os
 import queue
+import re
 import threading
 import time
 import traceback
 import webbrowser
+import zipfile
 from collections import OrderedDict
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, unquote, parse_qs
@@ -43,9 +51,9 @@ from . import review as review_store
 from . import tt_tg, ttl, kra, trochlear_morphology
 from .tibial_pcl import tpcl_at_slice, tpcl_from_points
 from .trochlea import sulcus_on_slice
-from .cache import file_sha1
+from .cache import file_sha1, code_fingerprint
 from .landmarks import Landmarks
-from .pipeline import TT_WINDOW_MIN_TIBIA_MM
+from .pipeline import TT_WINDOW_MIN_TIBIA_MM, MEASURES
 from .project import Project, list_dir, shortcuts, load_recent, remember, suggest_scans_dir, find_sheet
 from .runner import run_cohort
 from .scans import DisplayScan, AxialDisplay, find_axial
@@ -89,7 +97,18 @@ class App:
         if p is None:
             return {'project': None}
         reviews = review_store.load(p.review_file)['cases']
-        return {'project': p.summary(), 'cases': p.table(reviews), 'job': self.job}
+        n = sum(1 for c in reviews.values() for k in review_store.LANDMARK_KEYS if k in c)
+        return {'project': dict(p.summary(), n_decisions=n), 'cases': p.table(reviews), 'job': self.job}
+
+    def start_over(self):
+        """Remove every landmark decision (backed up first), so each scan
+        goes back to its automatic landmarks; knee sides are kept."""
+        p = self._require()
+        with self.lock:
+            n, backup = review_store.start_over(p.review_file)
+            for t in self.thumbs.values():          # the tiles showed the decisions
+                t.clear()
+        return dict(self.project_state(), removed=n, backup=backup)
 
     def _require(self):
         if self.project is None:
@@ -139,6 +158,75 @@ class App:
                     'message': 'Measuring...', 'error': None}
         threading.Thread(target=work, daemon=True).start()
         return self.job
+
+    # ---- steps and results
+    def steps_summary(self):
+        """For each QC step: how many scans (with a knee side) have a
+        decision, and of which kind."""
+        p = self._require()
+        rv = review_store.load(p.review_file)['cases']
+        codes = [c for c in p.files if p.sides[c][0]]
+        out = {}
+        for step, key in STEP_KEYS.items():
+            statuses = [((rv.get(c) or {}).get(key) or {}).get('status') for c in codes]
+            by = {}
+            for st in statuses:
+                if st:
+                    by[st] = by.get(st, 0) + 1
+            out[step] = {'total': len(codes), 'decided': sum(by.values()), 'by_status': by}
+        return out
+
+    def results_state(self):
+        """The results page: the last run's QC grid pages, and whether
+        decisions changed since (so the results need updating)."""
+        p = self._require()
+        meas = os.path.join(p.out, 'measurements.csv')
+        measured_at = os.path.getmtime(meas) if os.path.exists(meas) else None
+        decided_at = os.path.getmtime(p.review_file) if os.path.exists(p.review_file) else None
+        grids = []
+        for key in [m.key for m in MEASURES] + ['overview']:
+            pages = sorted(glob.glob(os.path.join(p.out, 'qc', f'{key}_grid*.png')), key=_page_number)
+            if pages:
+                grids.append({'key': key, 'title': GRID_TITLES.get(key, key),
+                              'pages': [{'name': os.path.basename(f), 'v': int(os.path.getmtime(f))} for f in pages]})
+        summary = p.summary()
+        return {'name': p.name, 'measured_at': measured_at,
+                'stale': bool(measured_at and decided_at and decided_at > measured_at),
+                'old_code': _run_fingerprint(p.out) not in (None, code_fingerprint()),
+                'n_to_measure': summary.get('n_to_measure'), 'grids': grids,
+                'steps': self.steps_summary(), 'job': self.job}
+
+    def download(self, what):
+        """(bytes, content type, file name) of measurements.csv or a zip of every QC grid page."""
+        p = self._require()
+        safe = re.sub(r'[^A-Za-z0-9._-]+', '_', p.name).strip('_') or 'kamino'
+        if what == 'measurements':
+            path = os.path.join(p.out, 'measurements.csv')
+            if not os.path.exists(path):
+                raise ValueError('nothing measured yet')
+            with open(path, 'rb') as f:
+                return f.read(), 'text/csv', f'{safe}_measurements.csv'
+        if what == 'qc':
+            pages = sorted(f for f in glob.glob(os.path.join(p.out, 'qc', '*_grid*.png'))
+                           if QC_NAME.match(os.path.basename(f)))
+            if not pages:
+                raise ValueError('no QC grids yet: update the results first')
+            buf = io.BytesIO()
+            with zipfile.ZipFile(buf, 'w', zipfile.ZIP_STORED) as z:     # PNGs are compressed already
+                for f in pages:
+                    z.write(f, os.path.join(f'{safe}_qc_grids', os.path.basename(f)))
+            return buf.getvalue(), 'application/zip', f'{safe}_qc_grids.zip'
+        raise KeyError(what)
+
+    def qc_image(self, name):
+        p = self._require()
+        if not QC_NAME.match(name or ''):
+            raise KeyError(name)
+        path = os.path.join(p.out, 'qc', name)
+        if not os.path.exists(path):
+            raise KeyError(name)
+        with open(path, 'rb') as f:
+            return f.read()
 
     # ---- review
     def review_state(self, step='tt'):
@@ -494,10 +582,26 @@ class App:
 
 
 STEP_KEYS = {'tt': 'tuberosity', 'tpcl': 'tpcl', 'sulcus': 'sulcus'}
+QC_NAME = re.compile(r'^[a-z_]+_grid(_p\d+)?\.png$')    # the QC grid pages the results page may show
+GRID_TITLES = {'overview': 'Segmentation overview', **{m.key: m.title for m in MEASURES}}
 LOADERS = max(2, min(6, (os.cpu_count() or 4) // 2))   # background threads loading scans for review
 MEASURE_JOBS = max(2, min(8, (os.cpu_count() or 4) // 2))   # processes measuring in parallel
 KRA_UNUSUAL_DEG = 15.0      # prescreen pre-selects scans whose KRA is beyond +-this
 SULCUS_USUAL_DEG = (140.0, 170.0)   # ... and whose sulcus angle is outside this (all pulls so far: 144-164)
+
+
+def _run_fingerprint(out):
+    """The measurement code's fingerprint recorded by the run that made these results, or None."""
+    try:
+        with open(os.path.join(out, '.kneemeasure', 'run_info.json')) as f:
+            return json.load(f).get('code_fingerprint')
+    except Exception:
+        return None
+
+
+def _page_number(path):
+    m = re.search(r'_p(\d+)\.png$', path)
+    return int(m.group(1)) if m else 0
 
 
 def _line(r):
@@ -777,6 +881,15 @@ def make_handler(app):
                                                 'total': len(app.project.files) if app.project else 0})
                     if p == ['state']:
                         return self._send(200, app.review_state(q.get('step', 'tt')))
+                    if p == ['steps']:
+                        return self._send(200, app.steps_summary())
+                    if p == ['results']:
+                        return self._send(200, app.results_state())
+                    if len(p) == 2 and p[0] == 'qc':
+                        return self._send(200, app.qc_image(p[1]), 'image/png')
+                    if len(p) == 2 and p[0] == 'download':
+                        data, ctype, name = app.download(p[1])
+                        return self._send(200, data, ctype, {'Content-Disposition': f'attachment; filename="{name}"'})
                     if len(p) == 2 and p[0] == 'case':
                         return self._send(200, app.case_info(p[1], q.get('step', 'tt')))
                     if len(p) == 4 and p[0] == 'case' and p[2] in ('axial', 'sagittal'):
@@ -800,6 +913,8 @@ def make_handler(app):
                         return self._send(200, app.sulcus_preview(p[1], body.get('z')))
                     if p == ['side']:
                         return self._send(200, app.set_side(body.get('case'), body.get('side')))
+                    if p == ['start_over']:
+                        return self._send(200, app.start_over())
                     if p in (['measure'], ['rebuild']):
                         return self._send(200, app.start_measure())
                     if len(p) == 3 and p[0] == 'case' and p[2] == 'decide':

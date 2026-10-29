@@ -116,9 +116,16 @@ python -m kneemeasure app
 This starts a small web app on this computer and opens it in the browser. It needs no extra
 installs, and no data leaves the machine.
 
-The app has a setup page, then a **prescreen** and a **review** for each landmark a person
-should check: the tibial tuberosity, the tibial posterior condylar line (TPCL), then the
-trochlear sulcus.
+The app has five steps, shown in order along the top: **Setup**, then the three landmarks a
+person should check (the tibial tuberosity, the tibial posterior condylar line (TPCL), and
+the trochlear sulcus), then **Results**.
+
+- **Each landmark step** starts with a **prescreen** and goes on to a **review** of the scans
+  picked there. Its link in the step bar shows how many scans still have no decision, or a
+  tick once they all do.
+- **Moving on:** the prescreen's button opens the review, or goes straight to the next step
+  when no scan is picked. In the review, **Go on to …** (under the decision buttons) leads to
+  the next step, and turns blue once every scan in the list has a decision.
 
 **1. Setup & measure**
 
@@ -144,8 +151,14 @@ trochlear sulcus.
      those.
   3. **Start review** once the results are up to date.
 
-  Results go to `<root>/kneemeasure/`, where `<root>` is the scan pull folder, or the
-  segmentations folder's parent outside a pull.
+  The app writes nothing next to the scans except the decisions file (below). Its results
+  are kept in your user cache folder (`~/.cache/kneemeasure/` on Linux,
+  `~/Library/Caches/kneemeasure/` on a Mac, `%LOCALAPPDATA%\kneemeasure\` on Windows), so
+  reopening a folder is instant. Download what you need from the Results page.
+- **Start over** (on the folder's card, when there are decisions) removes every
+  hand-checked landmark for the folder, so each scan goes back to its automatic landmarks.
+  Knee sides are kept, and the decisions file is first copied to
+  `kneemeasure_review.backup-<date>.json` next to it.
 
 **2. Prescreen tuberosities**
 
@@ -158,7 +171,10 @@ A grid with one tile per scan.
   view, or without an automatic point, start out selected.
 - **"Accept N · review M":** accepts the automatic point for every unselected scan
   (recorded as "accepted at prescreen") and opens the review with only the selected scans.
-  "show all" in the review list brings the rest back.
+  "show all" in the review list brings the rest back. With no scan selected, the button
+  accepts the rest and goes on to the next step.
+- **After a review:** a tile shows the decided point (green) instead of the automatic one,
+  on the axial scan if it was marked there.
 - **Loading:** tiles appear as the scans load in the background, a few seconds for a
   typical pull.
 
@@ -188,7 +204,8 @@ each scan:
     is shown at its own resolution (0.44–0.66 mm pixels, finer than the Dixon's 0.9 mm),
     and a point clicked on it is kept to a fraction of a voxel. Its slices are 4 mm thick and
     about 5 mm apart, so the sagittal view of it is coarse from top to bottom. Scans flagged
-    as out of view open on it.
+    as out of view open on it, and scrolling down past the Dixon's bottom slice switches to
+    it.
   - **Check the alignment first:** where both scans show the knee, the segmentation should
     sit on the bones of the axial scan. Both series come from the same session and share
     scanner coordinates, so it does unless the patient moved in between.
@@ -206,15 +223,16 @@ each scan:
     Dixon and axial lined up within 1 mm for 132 and within 2 mm for 150 (in-plane, 2026-10-29).
 - **Order:** scans with less than 37 mm of tibia in the scan come first.
 - **After each decision:** the scan's values are recalculated on the spot, and the app
-  moves to the next unreviewed scan.
+  moves to the next unreviewed scan. Click a scan in the list, or press `J` / `K`, to move
+  through the list yourself.
 
 Everything a person enters (decisions and knee sides) is saved immediately to
 `<root>/kneemeasure_review.json`, with the login name and time. "Undo decision" removes a
 scan's decision.
 
 - **Where it lives:** outside the results folder, so rebuilding never loses it.
-- **How it's applied:** every later run (`kneemeasure pull`, or "Update result files" in
-  the app) uses it, and only re-measures the scans that changed.
+- **How it's applied:** every later run (`kneemeasure pull`, or **Update results** on the
+  app's Results page) uses it, and only re-measures the scans that changed.
 - **In the output:** `measurements.csv` has a `TT_review` column (auto / accepted /
   replaced / replaced on axial / not in view / misaligned).
 
@@ -263,6 +281,19 @@ is the trochlear groove point for **TT-TG**.
   `measurements.csv` has a `Sulcus_review` column (auto / accepted / replaced).
 - **Not covered:** bump height uses its own slice (the deepest groove), which this step
   doesn't change.
+
+**6. Results**
+
+- **Decisions:** how many scans have a decision for each landmark, and of which kind.
+  Scans without one use the automatic landmark.
+- **Update results:** re-runs the measurements with every decision (only the scans whose
+  segmentation or decisions changed), then redoes the QC grids. The page says
+  when decisions have changed since the results were made.
+- **Download measurements.csv:** one row per scan with every measurement, the knee side and
+  each landmark's decision (see [Outputs](#outputs)). Your browser saves it wherever you
+  choose.
+- **QC grids:** each measurement's grid, with the measurement drawn on every scan. Click a
+  page to open it full size. **Download all grids (.zip)** saves every page as PNG.
 
 **Shortcuts:**
 
@@ -393,7 +424,7 @@ All are computed in 3D from the segmentation.
 | `KRA_deg` | Knee rotation angle: tibial posterior condylar line (TPCL) vs femoral posterior bicondylar line (PBCL). **+ = tibial external rotation** relative to the femur. |
 | `TT_TG_mm` | TT-TG along the PBCL; the groove is the sulcus of the Dejour cartilage reference slice |
 | `sTT_TG_mm` | sagittal TT-TG, perpendicular to the PBCL; **negative = TT posterior to TG** |
-| `PTLTR_mm` | patella lateral margin to lateral trochlear bony ridge, along the PBCL (unsigned) |
+| `PTLTR_mm` | patella lateral margin to the lateral trochlear bony ridge on the tendon cut (the first slice below the patella, or the nearest slice with a usable ridge), along the posterior condylar line on that slice (unsigned; Mistovich 2018, with the patella's edge for the tendon's) |
 | `TTL`, `TTL_t_mm`, `TTL_T_mm` | tubercle lateralization t/T along the TPCL (t = medial tibial edge to TT, T = tibial width) |
 | `LTI_deg` | lateral trochlear inclination at the Dejour reference slice (+ = lateral facet anterior to PBCL) |
 | `sulcus_angle_deg` | cartilage sulcus angle at the reference slice |

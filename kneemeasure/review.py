@@ -39,6 +39,7 @@ TT-TG / sTT-TG / TTL are left blank, to be measured manually.
 import datetime
 import json
 import os
+import shutil
 import tempfile
 
 TUBEROSITY_STATUSES = ('accepted', 'replaced', 'not_in_view', 'misaligned')
@@ -150,6 +151,28 @@ def clear_review(data, case, key):
         c.pop(key, None)
         if not c:
             data['cases'].pop(case)
+
+
+LANDMARK_KEYS = ('tuberosity', 'tpcl', 'sulcus')
+
+
+def start_over(path):
+    """Remove every landmark decision in a review file (knee sides entered
+    in the app are kept), after copying the file to
+    kneemeasure_review.backup-<time>.json next to it. Returns (number of
+    decisions removed, backup path or None when there was nothing to remove)."""
+    data = load(path)
+    n = sum(1 for c in data['cases'].values() for k in LANDMARK_KEYS if k in c)
+    if not n:
+        return 0, None
+    stamp = datetime.datetime.now().strftime('%Y-%m-%d_%H%M%S')
+    backup = os.path.join(os.path.dirname(os.path.abspath(path)), f'kneemeasure_review.backup-{stamp}.json')
+    shutil.copy2(path, backup)
+    for case in list(data['cases']):
+        for k in LANDMARK_KEYS:
+            clear_review(data, case, k)
+    save(path, data)
+    return n, backup
 
 
 def clear_tuberosity(data, case):
