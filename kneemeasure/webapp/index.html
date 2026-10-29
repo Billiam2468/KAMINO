@@ -1037,9 +1037,9 @@ async function openPrescreen() {
   PS.cases = st.cases;
   $('psTitle').textContent = `Click the scans whose ${STEP_NAME[STEP]} needs a closer look.`;
   $('psDesc').textContent = {
-    tt: 'Each tile: axial (left) and sagittal (right) through the automatic point. Unselected scans get the automatic point accepted.',
-    tpcl: 'Each tile: the tibial slice the automatic line was taken from, with the line. Unselected scans get the automatic line accepted.',
-    sulcus: 'Each tile: the femoral slice the automatic cartilage sulcus was found on (the first, from the top, whose cartilage groove is at least 2 mm deep), with the cartilage facet peaks and sulcus. Unselected scans get the automatic cartilage sulcus accepted.'}[STEP];
+    tt: 'Each tile: axial (left) and sagittal (right) through the automatic point, or through the point chosen in the review (green). Unselected scans get the automatic point accepted.',
+    tpcl: 'Each tile: the tibial slice the automatic line was taken from, with the line, or the line chosen in the review (green). Unselected scans get the automatic line accepted.',
+    sulcus: 'Each tile: the femoral slice the automatic cartilage sulcus was found on (the first, from the top, whose cartilage groove is at least 2 mm deep), with the cartilage facet peaks and sulcus, or the ones chosen in the review (green). Unselected scans get the automatic cartilage sulcus accepted.'}[STEP];
   // load every scan once in the background, so every tile appears
   api('prefetch', {cases: PS.cases.map(c => c.case), everything: true}).catch(() => {});
   pollThumbs();
@@ -1085,9 +1085,9 @@ function renderGrid() {
       const pics = STEP === 'tt' ? '<div class="pics"><canvas data-p="axial"></canvas><canvas data-p="sagittal"></canvas></div>'
                                  : '<div class="pics one"><canvas data-p="axial"></canvas></div>';
       const meta = STEP === 'tt'
-        ? `TT-TG ${fmt(c.tt_tg)} mm · tibia ${fmt(t.tibia_length_mm, 0)} mm${t.scan_bottom_visible ? ' · reaches scan bottom' : ''}`
-        : STEP === 'tpcl' ? `KRA ${fmt(c.kra)}° · TTL ${fmt(c.ttl, 2)}${t.auto ? ` · slice ${t.auto.z}` : ''}`
-        : `cartilage sulcus angle ${fmt(t.auto ? t.auto.angle : null)}° · TT-TG ${fmt(c.tt_tg)} mm${t.auto ? ` · slice ${t.auto.z}` : ''}`;
+        ? `TT-TG ${fmt(c.tt_tg)} mm · tibia ${fmt(t.tibia_length_mm, 0)} mm${t.scan_bottom_visible ? ' · reaches scan bottom' : ''}${t.on_axial ? ' · axial series' : ''}`
+        : STEP === 'tpcl' ? `KRA ${fmt(c.kra)}° · TTL ${fmt(c.ttl, 2)}${t.shown ? ` · slice ${t.shown.z}` : ''}`
+        : `cartilage sulcus angle ${fmt(t.shown ? t.shown.angle : null)}° · TT-TG ${fmt(c.tt_tg)} mm${t.shown ? ` · slice ${t.shown.z}` : ''}`;
       d.innerHTML = `<span class="pick">review</span>${pics}
         <div class="cap"><b>${esc(c.case)}</b><span class="badge ${badgeClass(c)}">${badgeText(c, t)}</span></div>
         <div class="meta">${c.side === 'R' ? 'Right' : 'Left'} · ${meta}</div>`;
@@ -1134,7 +1134,7 @@ function drawTiles() { document.querySelectorAll('#grid .tile:not(.loading)').fo
 
 function drawTile(d, t) {
   if (!t) return;
-  const seg = $('psSeg').checked, keep = [S.segOn, S.segOpacity];
+  const seg = $('psSeg').checked, keep = [S.segOn, S.segOpacity], color = getVar(t.mine ? '--mine' : '--auto');
   S.segOn = seg; S.segOpacity = 0.25;
   for (const cv of d.querySelectorAll('canvas')) {
     const plane = cv.dataset.p, crop = t[plane];
@@ -1151,21 +1151,21 @@ function drawTile(d, t) {
     if (crop.marker) {
       const mx = ox + (crop.marker[0] + 0.5) * pw * scale;
       const my = plane === 'axial' ? oy + (crop.marker[1] + 0.5) * ph * scale : oy + (b - 1 - crop.marker[1] + 0.5) * ph * scale;
-      g.strokeStyle = getVar('--auto'); g.lineWidth = 2 * dpr;
+      g.strokeStyle = color; g.lineWidth = 2 * dpr;
       g.beginPath(); g.arc(mx, my, 6 * dpr, 0, 2 * Math.PI); g.stroke();
     }
-    if (crop.line) {        // TPCL: the automatic line, extended, with its two condyle points
+    if (crop.line) {        // TPCL: the automatic (or reviewed) line, extended, with its two condyle points
       const P0 = [ox + (crop.line[0][0] + 0.5) * pw * scale, oy + (crop.line[0][1] + 0.5) * ph * scale];
       const P1 = [ox + (crop.line[1][0] + 0.5) * pw * scale, oy + (crop.line[1][1] + 0.5) * ph * scale];
       const dx = P1[0] - P0[0], dy = P1[1] - P0[1], n = Math.hypot(dx, dy) || 1, ext = cv.width;
-      g.strokeStyle = getVar('--auto'); g.lineWidth = 2 * dpr;
+      g.strokeStyle = color; g.lineWidth = 2 * dpr;
       g.beginPath(); g.moveTo(P0[0] - dx / n * ext, P0[1] - dy / n * ext); g.lineTo(P1[0] + dx / n * ext, P1[1] + dy / n * ext); g.stroke();
-      g.fillStyle = getVar('--auto');
+      g.fillStyle = color;
       for (const pt of [P0, P1]) { g.beginPath(); g.arc(pt[0], pt[1], 3.5 * dpr, 0, 2 * Math.PI); g.fill(); }
     }
     if (crop.sulcus) {      // sulcus: medial facet peak -> sulcus -> lateral facet peak
       const pts = crop.sulcus.map(p2 => [ox + (p2[0] + 0.5) * pw * scale, oy + (p2[1] + 0.5) * ph * scale]);
-      g.strokeStyle = g.fillStyle = getVar('--auto'); g.lineWidth = 2 * dpr;
+      g.strokeStyle = g.fillStyle = color; g.lineWidth = 2 * dpr;
       g.beginPath(); g.moveTo(...pts[0]); g.lineTo(...pts[1]); g.lineTo(...pts[2]); g.stroke();
       for (const pt of pts) { g.beginPath(); g.arc(pt[0], pt[1], 3.5 * dpr, 0, 2 * Math.PI); g.fill(); }
     }

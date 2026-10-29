@@ -233,7 +233,8 @@ class App:
                  'y_extent': (int(ys.min()), int(ys.max())) if len(ys) else None,
                  'x_extent': (int(xs.min()), int(xs.max())) if len(xs) else None,
                  'troch': troch, 'scan': scan, 'scan_note': scan_note, 'axial': axial, 'axial_note': axial_note}
-        thumbs = {'tt': _tuberosity_thumb(entry), 'tpcl': _tpcl_thumb(entry), 'sulcus': _sulcus_thumb(entry)}
+        reviews = review_store.load(p.review_file)['cases'].get(code) or {}
+        thumbs = {step: THUMBS[step](entry, reviews.get(key)) for step, key in STEP_KEYS.items()}
         with self.lock:
             self.cases[code] = entry
             for step, t in thumbs.items():
@@ -272,6 +273,13 @@ class App:
                 self._case(code)
             except Exception:
                 pass
+
+    def _refresh_thumb(self, code, step, review):
+        """Redraw one prescreen tile after its decision changed, so it shows
+        the reviewed landmark (review: that step's decision, or None)."""
+        t = THUMBS[step](self._case(code), review)
+        with self.lock:
+            self.thumbs[step][code] = t
 
     def case_info(self, code, step='tt'):
         e = self._case(code)
@@ -389,10 +397,11 @@ class App:
                 raise ValueError("this slice doesn't show two posterior condyles -- click two points instead")
         with self.lock:
             data = review_store.load(self.project.review_file)
-            review_store.set_tpcl(data, code, 'accepted' if status == 'accepted' else 'replaced', line,
-                                  auto=auto if auto.get('theta') is not None else None, method=method,
-                                  reviewer=self.reviewer, note=note, file_sha1=e['sha1'])
+            review = review_store.set_tpcl(data, code, 'accepted' if status == 'accepted' else 'replaced', line,
+                                           auto=auto if auto.get('theta') is not None else None, method=method,
+                                           reviewer=self.reviewer, note=note, file_sha1=e['sha1'])
             review_store.save(self.project.review_file, data)
+        self._refresh_thumb(code, 'tpcl', review)
         return self.recompute(code)
 
     def sulcus_preview(self, code, z):
@@ -423,10 +432,11 @@ class App:
                 raise ValueError("no sulcus found on this slice -- click the three points instead")
         with self.lock:
             data = review_store.load(self.project.review_file)
-            review_store.set_sulcus(data, code, 'accepted' if status == 'accepted' else 'replaced', ref,
-                                    auto=auto if auto.get('z') is not None else None, method=method,
-                                    reviewer=self.reviewer, note=note, file_sha1=e['sha1'])
+            review = review_store.set_sulcus(data, code, 'accepted' if status == 'accepted' else 'replaced', ref,
+                                             auto=auto if auto.get('z') is not None else None, method=method,
+                                             reviewer=self.reviewer, note=note, file_sha1=e['sha1'])
             review_store.save(self.project.review_file, data)
+        self._refresh_thumb(code, 'sulcus', review)
         return self.recompute(code)
 
     def decide(self, code, status, point=None, note='', source=None):
@@ -444,11 +454,12 @@ class App:
         lps = index_to_lps(e['case']['header'], *point) if has_point else None
         with self.lock:
             data = review_store.load(self.project.review_file)
-            review_store.set_tuberosity(
+            review = review_store.set_tuberosity(
                 data, code, status, point=point if has_point else None, reviewer=self.reviewer, note=note,
                 auto_point=e['auto'].get('point'), file_sha1=e['sha1'], point_lps_mm=lps,
                 source=source if has_point else None)
             review_store.save(self.project.review_file, data)
+        self._refresh_thumb(code, 'tt', review)
         return self.recompute(code)
 
     def clear(self, code, step='tt'):
@@ -456,6 +467,7 @@ class App:
             data = review_store.load(self.project.review_file)
             review_store.clear_review(data, code, STEP_KEYS[step])
             review_store.save(self.project.review_file, data)
+        self._refresh_thumb(code, step, None)
         return self.recompute(code)
 
     def recompute(self, code):
@@ -528,16 +540,18 @@ def _sulcus_at(entry, z):
     return sulcus_on_slice((sl & 1).astype(bool), (sl & 2).astype(bool), entry['case']['spacing'][0], z)
 
 
-def _sulcus_thumb(entry, margin_mm=8.0):
-    """The axial slice the automatic sulcus was found on, cropped to the
-    front half of the femur (the trochlea), with the sulcus and the two
-    facet peaks."""
+def _sulcus_thumb(entry, review=None, margin_mm=8.0):
+    """The axial slice the automatic sulcus was found on (or the reviewed
+    one, review: the case's sulcus decision), cropped to the front half of
+    the femur (the trochlea), with the sulcus and the two facet peaks."""
     case, scan, lm = entry['case'], entry['scan'], entry['lm']
     labels, (sx, sy, sz) = case['labels'], case['spacing']
     ref = lm.reference_slice_auto
     auto = _sulcus(ref, entry) if ref.get('z') is not None else None
+    shown = _sulcus({'z': review['z'], 'sulcus': review['sulcus'], 'peak1': review['peaks'][0],
+                     'peak2': review['peaks'][1]}, entry) if review else auto
     troch = entry['troch']
-    z = auto['z'] if auto else (troch[0] + troch[1].shape[2] * 2 // 3 if troch else labels.shape[2] // 2)
+    z = shown['z'] if shown else (troch[0] + troch[1].shape[2] * 2 // 3 if troch else labels.shape[2] // 2)
     fem = labels[:, :, z] == 1
     xs, ys = np.where(fem.any(axis=1))[0], np.where(fem.any(axis=0))[0]
     if len(xs) == 0:
@@ -549,19 +563,21 @@ def _sulcus_thumb(entry, margin_mm=8.0):
     img = scan.slice('axial', z)[x0:x1, y0:y1] if scan is not None else None
     crop = {'shape': list(lab.shape), 'data': _b64(lab), 'scan': _b64(img) if img is not None else None,
             'sulcus': None}
-    if auto:
-        crop['sulcus'] = [[p[0] - x0, p[1] - y0] for p in (auto['medial_pt'], auto['sulcus'], auto['lateral_pt'])]
+    if shown:
+        crop['sulcus'] = [[p[0] - x0, p[1] - y0] for p in (shown['medial_pt'], shown['sulcus'], shown['lateral_pt'])]
     return {'side': entry['side'], 'spacing': [sx, sy, sz], 'auto': auto, 'sha1': entry['sha1'],
-            'axial': crop, 'z': z}
+            'axial': crop, 'z': z, 'shown': shown, 'mine': _replaced(review)}
 
 
-def _tpcl_thumb(entry, margin_mm=10.0):
-    """The axial tibia slice the automatic TPCL was taken from, cropped to
-    the tibia, with the line's two condyle points (for drawing the line)."""
+def _tpcl_thumb(entry, review=None, margin_mm=10.0):
+    """The axial tibia slice the automatic TPCL was taken from (or the
+    reviewed line's, review: the case's TPCL decision), cropped to the
+    tibia, with the line's two condyle points (for drawing the line)."""
     case, scan, lm = entry['case'], entry['scan'], entry['lm']
     labels, (sx, sy, sz) = case['labels'], case['spacing']
     tp = lm.tpcl_auto
-    line = _line(tp) if tp.get('theta') is not None else None
+    auto = _line(tp) if tp.get('theta') is not None else None
+    line = _line(review) if review else auto
     z = line['z'] if line else (int(np.mean(entry['tibia_z'])) if entry['tibia_z'] else labels.shape[2] // 2)
     tib = case['tibia'][:, :, z]
     xs, ys = np.where(tib.any(axis=1))[0], np.where(tib.any(axis=0))[0]
@@ -577,48 +593,75 @@ def _tpcl_thumb(entry, margin_mm=10.0):
     if line:
         crop['line'] = [[line['medial_pt'][0] - x0, line['medial_pt'][1] - y0],
                         [line['lateral_pt'][0] - x0, line['lateral_pt'][1] - y0]]
-    return {'side': entry['side'], 'spacing': [sx, sy, sz], 'auto': line, 'sha1': entry['sha1'],
-            'axial': crop, 'z': z}
+    return {'side': entry['side'], 'spacing': [sx, sy, sz], 'auto': auto, 'sha1': entry['sha1'],
+            'axial': crop, 'z': z, 'shown': line, 'mine': _replaced(review)}
 
 
-def _tuberosity_thumb(entry, half_mm=35.0, up_mm=55.0):
+def _tuberosity_thumb(entry, review=None, half_mm=35.0, up_mm=55.0):
     """Small crops around the automatic tuberosity point for the prescreen
     grid: the axial slice through it and the sagittal slice through it (that
     one reaching down to the bottom of the scan when it's close, so a tibia
-    cut off by the field of view is visible)."""
-    case, auto, scan = entry['case'], entry['auto'], entry['scan']
+    cut off by the field of view is visible). review: the case's tuberosity
+    decision -- the crops then go through the reviewed point instead (none
+    is marked for not in view / misaligned), from the axial series when the
+    point was clicked there (it may lie below the segmentation)."""
+    case, auto = entry['case'], entry['auto']
     labels, (sx, sy, sz) = case['labels'], case['spacing']
     nx, ny, nz = labels.shape
-    pt = auto.get('point')
-    if pt is None:                                   # no automatic point: centre on the tibia
+    mark = review.get('point') if review else auto.get('point')
+    on_axial = bool(mark and review and review.get('source') == 'axial' and entry['axial'] is not None)
+    scan = entry['axial'] if on_axial else entry['scan']
+    below, f = (scan.z_below, scan.factor) if on_axial else (0, 1)
+    pt = mark or auto.get('point')
+    if pt is None:                                   # no point: centre on the tibia
         tib = np.argwhere(case['tibia'])
         pt = tuple(int(v) for v in (tib.mean(axis=0) if len(tib) else (nx // 2, ny // 2, nz // 2)))
-    x, y, z = (int(v) for v in pt)
+    x, y, z = int(round(pt[0])), int(round(pt[1])), int(pt[2])
     hx, hy, hz = int(half_mm / sx), int(half_mm / sy), int(half_mm / sz)
     x0, x1 = max(0, x - hx), min(nx, x + hx + 1)
     y0, y1 = max(0, y - hy), min(ny, y + hy + 1)
-    z0, z1 = max(0, z - hz), min(nz, z + int(up_mm / sz) + 1)      # more room above: the tubercle's profile
+    # sagittal rows counted from the bottom of what's shown (the axial series may reach below slice 0)
+    z0, z1 = max(0, z + below - hz), min(nz + below, z + below + int(up_mm / sz) + 1)   # more room above: the tubercle's profile
 
     def crop(plane):
         if plane == 'axial':
-            lab = labels[x0:x1, y0:y1, z]
-            img = scan.slice('axial', z)[x0:x1, y0:y1] if scan is not None else None
-            mark = (x - x0, y - y0)
+            lab = labels[x0:x1, y0:y1, z] if z >= 0 else np.zeros((x1 - x0, y1 - y0), dtype=labels.dtype)
+            img = _coarsen(scan.slice('axial', z), f, f)[x0:x1, y0:y1] if scan is not None else None
+            at = (pt[0] - x0, pt[1] - y0)
         else:
-            lab = labels[x, y0:y1, z0:z1]
-            img = scan.slice('sagittal', x)[y0:y1, z0:z1] if scan is not None else None
-            mark = (y - y0, z - z0)
+            lab = np.pad(labels[x, y0:y1, :], ((0, 0), (below, 0)))[:, z0:z1]
+            img = _coarsen(scan.slice('sagittal', x), f, 1)[y0:y1, z0:z1] if scan is not None else None
+            at = (pt[1] - y0, pt[2] + below - z0)
         return {'shape': list(lab.shape), 'data': _b64(lab), 'scan': _b64(img) if img is not None else None,
-                'marker': list(mark) if auto.get('point') else None}
+                'marker': [float(v) for v in at] if mark else None}
 
     tibia_mm = (entry['tibia_z'][1] - entry['tibia_z'][0] + 1) * sz if entry['tibia_z'] else None
     return {'side': entry['side'], 'spacing': [sx, sy, sz], 'auto_point': list(auto['point']) if auto.get('point') else None,
             'auto': list(auto['point']) if auto.get('point') else None,
             'auto_lps': index_to_lps(case['header'], *auto['point']) if auto.get('point') else None,
             'sha1': entry['sha1'], 'tibia_length_mm': tibia_mm,
-            'scan_bottom_visible': z0 == 0 and entry['tibia_z'] is not None and entry['tibia_z'][0] == 0,
+            'scan_bottom_visible': not on_axial and z0 == 0 and entry['tibia_z'] is not None and entry['tibia_z'][0] == 0,
             'axial': crop('axial'), 'sagittal': crop('sagittal'),
-            'values': None}
+            'values': None, 'mine': _replaced(review), 'on_axial': on_axial}
+
+
+def _replaced(review):
+    """Whether a decision put a reviewer's own landmark in (drawn in the review's colour)."""
+    return bool(review and review.get('status') == 'replaced')
+
+
+def _coarsen(img, fx, fy):
+    """An axial-series slice (fx, fy times finer than the segmentation, see
+    AxialDisplay) block-averaged back to the segmentation's voxels: fine
+    pixels f*i ... f*i + f - 1 are centred on voxel i. The thumbnails are
+    small, so they don't need the finer pixels."""
+    if fx == fy == 1:
+        return img
+    a, b = img.shape[0] // fx, img.shape[1] // fy
+    return np.rint(img[:a * fx, :b * fy].reshape(a, fx, b, fy).mean(axis=(1, 3))).astype(np.uint8)
+
+
+THUMBS = {'tt': _tuberosity_thumb, 'tpcl': _tpcl_thumb, 'sulcus': _sulcus_thumb}
 
 
 def _cache_size(per_case_mb=60, share=0.25, floor=6, ceiling=300):
