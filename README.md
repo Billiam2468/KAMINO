@@ -1,13 +1,42 @@
-# KAMINO
+<h1 align="center">KAMINO</h1>
 
-**K**nee **A**natomy **M**easurements from **I**maging and **N**etwork **O**utput
+<p align="center"><b>K</b>nee <b>A</b>natomy <b>M</b>easurements from <b>I</b>maging and <b>N</b>etwork <b>O</b>utput</p>
 
-Automated knee MRI measurements from labeled segmentations: KRA, TT-TG, sTT-TG, TTL,
-PTLTR, LTI, sulcus angle, trochlear depth, bump height and CDI. It also produces QC
-images, a list of everything that needs a human look, and a review app for checking
-the landmarks the measurements depend on.
+| **K** | **A** | **M** | **I** | **N** | **O** |
+|:---:|:---:|:---:|:---:|:---:|:---:|
+| Knee | Anatomy | Measurements | Imaging | Network | Output |
 
+Automated patellofemoral and tibiofemoral measurements from knee MRI segmentations, with
+QC images of every measurement and an app for checking the landmarks a person should see.
 Everything runs on your own computer; no scan or result leaves it.
+
+![Every KAMINO measurement drawn on one knee's segmentation](docs/images/measurements.png)
+
+*One knee's segmentation with each measurement drawn on it, as in KAMINO's QC grids
+(green: femur, blue: femoral cartilage, purple: patella, red: patellar cartilage, orange: tibia).*
+
+## What it measures
+
+| Measurement | What it describes | Unit | Checked in the app |
+|---|---|---|---|
+| **Knee rotation angle (KRA)** | Rotation of the tibia relative to the femur: the tibial posterior condylar line against the femoral posterior bicondylar line (+ = tibial external rotation) | deg | Tibial line |
+| **TT-TG** | Side-to-side distance from the tibial tuberosity to the trochlear groove | mm | Tuberosity, cartilage sulcus |
+| **sTT-TG** | Front-to-back distance from the tibial tuberosity to the trochlear groove (− = tuberosity behind the groove) | mm | Tuberosity, cartilage sulcus |
+| **PTLTR** | How far the patella's lateral edge reaches past the lateral trochlear ridge | mm | – |
+| **Tibial tubercle lateralization (TTL)** | Position of the tuberosity across the tibia, as t / T (t: medial tibial edge to the tuberosity; T: tibial width) | ratio, mm | Tuberosity, tibial line |
+| **Lateral trochlear inclination (LTI)** | Slope of the lateral trochlear facet against the posterior condyles | deg | Cartilage sulcus |
+| **Sulcus angle** | Opening angle of the trochlear groove, on the cartilage surface | deg | Cartilage sulcus |
+| **Trochlear depth, facet depths** | Depth of the groove below its two facets, and each facet's height | mm | Cartilage sulcus |
+| **Facet lengths and asymmetry** | Length of the medial and lateral facets, and medial / lateral | mm, ratio | Cartilage sulcus |
+| **Trochlear bump height** | How far the trochlea (bone and cartilage) stands in front of the femoral shaft | mm | – |
+| **Caton-Deschamps index (CDI)** | Patellar height: patellar cartilage to the tibia, over the cartilage length | ratio | – |
+
+- **Checked in the app:** the landmarks a person reviews before the value is final; the
+  others are fully automatic and shown in the QC grids.
+- **Exact definitions:** the column names in `measurements.csv` are in
+  [Measurements](#measurements) below, and how each is calculated is in
+  `Measurement methods.xlsx`.
+- **Agreement with manual measurements:** [VALIDATION.md](VALIDATION.md).
 
 ## Download and run
 
@@ -32,14 +61,16 @@ The app isn't signed by a paid developer certificate, so the first time:
   `xattr -dr com.apple.quarantine /Applications/KAMINO.app` (or wherever you put it),
   then open it again.
 
-**Using it:** pick your segmentations folder (and the scans folder, if you have one) and
-follow the one button on the setup page: measure, then review. See [The app](#the-app).
+**Using it:** pick your segmentations folder (and the scans folder, if you have one),
+measure, then follow the steps along the top: tuberosity, tibial line, cartilage sulcus,
+then Results, where you download `measurements.csv` and the QC grids. See
+[The app](#the-app).
 
 - **Closing it:** just close the browser tab. KAMINO stops by itself about 10
   minutes later (never while it's measuring); opening it again starts it again.
 - **Updates:** when a newer version is out, a "Version ... is available" link appears at
-  the top of the page. Download it the same way; your results and review decisions are
-  kept in your data folders, not in the app.
+  the top of the page. Download it the same way; your review decisions are kept in your
+  data folders, and the app re-measures with the new version when you update the results.
 - **Log:** messages and errors go to `.config/kneemeasure/app.log` in your home folder.
 
 ### What you need
