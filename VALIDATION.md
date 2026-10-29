@@ -28,7 +28,7 @@ python -m kneemeasure validate "<run>/PFI ORS Validation" --manual "<sheet>" --i
 | KRA (deg) | Knee Rotation Angle (MRI) | 45 | -1.3 | -9.9 / +7.4 | 3.4 | 0.83 | **0.82** |
 | sTT-TG (mm), TT in window | sTT-TG (MRI) | 32 | +0.5 | -4.4 / +5.5 | 2.0 | 0.90 | **0.90** |
 | sTT-TG (mm), all | | 43 | -0.3 | -6.1 / +5.6 | 2.3 | 0.85 | 0.86 |
-| PTLTR (mm) | PTLTR | 43 | -2.4 | -12.6 / +7.7 | 4.6 | 0.81 | **0.75** |
+| PTLTR (mm) | PTLTR | 43 | -2.8 | -13.0 / +7.5 | 4.7 | 0.80 | **0.73** |
 | Bone bump (mm) | Bump Height_Bone (MRI) | 45 | -0.7 | -3.9 / +2.4 | 1.4 | 0.65 | 0.60 |
 | CDI | CDI (MRI) | 25 | -0.01 | -0.34 / +0.33 | 0.14 | 0.58 | 0.58 |
 | Cartilage bump (mm) | Bump Height_Cartilage (MRI) | 45 | -0.7 | -5.2 / +3.7 | 1.8 | 0.46 | 0.44 |
@@ -107,3 +107,27 @@ each measurement).
     old PBCL that split changes nothing (0.76 either way).
   - **Bitangent on the old method's slice:** worse on every measurement (KRA 0.45),
     because on that slice the deepest concavity isn't always the intercondylar notch.
+- **PTLTR now follows Mistovich et al. 2018 for the ridge and the line** (2026-10-29): the
+  lateral trochlear ridge is taken on the tendon cut (the first slice below the patella),
+  or the nearest slice with a usable ridge, and PTLTR is measured along the posterior
+  condylar line on that same slice, as in the paper's Figure 2B. The knee's usual PBCL is
+  unchanged and still used by every other measurement; PTLTR falls back to it when the
+  ridge's slice has no notch (4 of 43 knees). The patella's lateral edge still stands in
+  for the tendon's, which isn't segmented.
+
+  | PTLTR ridge / line | ICC(2,1) |
+  |---|---|
+  | previous: most anterior lateral point over the trochlea / usual PBCL | 0.75 |
+  | tendon cut / usual PBCL | 0.73 |
+  | most anterior / line on the ridge's slice | 0.74 |
+  | **tendon cut / line on the ridge's slice (now)** | **0.73** |
+
+  - **Why it barely moves:** in 16 of the 43 knees the tendon cut is above the trochlea
+    (the patella rides high with the knee straight), so the ridge comes from the top of the
+    trochlea, where the old method usually found it too; the ridge stayed on the same slice
+    in 19 knees and moved a median 1.8 mm. On the ridge's slice the line is within a median
+    0.6 deg (at most 3.7 deg) of the usual PBCL.
+  - **Kept for fidelity, not agreement:** the change follows the published method; agreement
+    with the manual sheet is within noise of before. The manual values (mean 16.8 mm) are
+    larger than tendon-based values would be, which suggests the raters measured to the
+    patella's edge; the remaining bias (-2.8 mm) may come from how they measured.

@@ -112,29 +112,46 @@ def find_pbcl(case, knee_side, min_notch_depth_mm=2.0, min_lobe_mm=3.0):
     relative to true Left/Posterior (they differ for files whose header
     has an oblique in-plane rotation)."""
     bone = case['bone']
-    spacing_x, spacing_y = case['spacing'][0], case['spacing'][1]
-    result = {'theta': None, 'theta_true': None, 'z': None, 'medial_pt': None, 'lateral_pt': None}
-
-    best_y, best_z, best_med, best_lat = -np.inf, None, None, None
+    best_y, best = -np.inf, None
     for z in np.where(bone.any(axis=(0, 1)))[0]:
-        notch = posterior_bitangent(bone[:, :, z], spacing_x, spacing_y, min_lobe_mm)
-        if notch is None or notch['depth_mm'] < min_notch_depth_mm:
+        pts = _slice_condyles(case, int(z), knee_side, min_notch_depth_mm, min_lobe_mm)
+        if pts is None:
             continue
-        medial_pt, lateral_pt = _medial_lateral_from_peaks([notch['p1'], notch['p2']], knee_side)
-        y_avg = (medial_pt[1] + lateral_pt[1]) / 2.0
+        y_avg = (pts[0][1] + pts[1][1]) / 2.0
         if y_avg > best_y:
-            best_y, best_z, best_med, best_lat = y_avg, int(z), medial_pt, lateral_pt
+            best_y, best = y_avg, (int(z), *pts)
+    if best is None:
+        return {'theta': None, 'theta_true': None, 'z': None, 'medial_pt': None, 'lateral_pt': None}
+    return _pbcl_result(case, *best)
 
-    if best_z is None:
-        return result
-    result['theta'] = _theta_from_points(best_med, best_lat, spacing_x, spacing_y)
-    result['z'], result['medial_pt'], result['lateral_pt'] = best_z, best_med, best_lat
 
-    med_L, med_P = true_physical_lp(case['header'], best_med[0], best_med[1], best_z)
-    lat_L, lat_P = true_physical_lp(case['header'], best_lat[0], best_lat[1], best_z)
+def pbcl_on_slice(case, z, knee_side, min_notch_depth_mm=2.0, min_lobe_mm=3.0):
+    """The PBCL drawn on one given slice (the bitangent across that
+    slice's notch), as find_pbcl returns it, or {'theta': None, ...} when
+    the slice has no qualifying notch."""
+    pts = _slice_condyles(case, int(z), knee_side, min_notch_depth_mm, min_lobe_mm)
+    if pts is None:
+        return {'theta': None, 'theta_true': None, 'z': None, 'medial_pt': None, 'lateral_pt': None}
+    return _pbcl_result(case, int(z), *pts)
+
+
+def _slice_condyles(case, z, knee_side, min_notch_depth_mm, min_lobe_mm):
+    """(medial_pt, lateral_pt) of the posterior bitangent on slice z, or None."""
+    spacing_x, spacing_y = case['spacing'][0], case['spacing'][1]
+    notch = posterior_bitangent(case['bone'][:, :, z], spacing_x, spacing_y, min_lobe_mm)
+    if notch is None or notch['depth_mm'] < min_notch_depth_mm:
+        return None
+    return _medial_lateral_from_peaks([notch['p1'], notch['p2']], knee_side)
+
+
+def _pbcl_result(case, z, medial_pt, lateral_pt):
+    spacing_x, spacing_y = case['spacing'][0], case['spacing'][1]
+    med_L, med_P = true_physical_lp(case['header'], medial_pt[0], medial_pt[1], z)
+    lat_L, lat_P = true_physical_lp(case['header'], lateral_pt[0], lateral_pt[1], z)
     p1, p2 = sorted([(float(med_L), float(med_P)), (float(lat_L), float(lat_P))], key=lambda p: p[0])
-    result['theta_true'] = float(np.degrees(np.arctan2(p2[1] - p1[1], p2[0] - p1[0])))
-    return result
+    return {'theta': _theta_from_points(medial_pt, lateral_pt, spacing_x, spacing_y),
+            'theta_true': float(np.degrees(np.arctan2(p2[1] - p1[1], p2[0] - p1[0]))),
+            'z': z, 'medial_pt': medial_pt, 'lateral_pt': lateral_pt}
 
 
 def pcl_axes(theta_deg):

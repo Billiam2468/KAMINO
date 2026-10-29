@@ -1,29 +1,44 @@
 """
 PTLTR: the mediolateral offset between the patella's lateral margin and
-the lateral trochlear ridge, projected onto the PBCL (same "project both
-landmarks onto the PBCL" convention as TT-TG). Unsigned.
+the lateral trochlear ridge, along the posterior condylar line, as in
+Mistovich et al. 2018 (patellar tendon-lateral trochlear ridge distance)
+except that the patella's edge stands in for the tendon's (the
+segmentation has no patellar tendon). Unsigned.
 
-Landmarks:
-- Ridge point: the single point on the LATERAL bony trochlea with the
-  greatest anterior projection beyond the PBCL, searched from the proximal
-  trochlea down to the condyle split but only on slices that have a real
-  (>= 2 mm) cartilaginous sulcus. That gate excludes the proximal shaft
-  (whose natural anterior curvature otherwise wins) and the distal notch.
-  "Lateral" is lateral of that slice's own sulcus.
+Landmarks, following the paper's method:
+- Tendon cut: the first axial slice below the patella bone -- where the
+  paper marks the tendon ("the first distal cut demonstrating the patellar
+  tendon without bone").
+- Ridge point: the apex of the lateral trochlear ridge on the tendon cut
+  ("if this cannot be identified on the same cut, this may be marked on the
+  most visible cut, then translated"): the femur BONE point lateral of the
+  slice's own cartilage sulcus lying furthest anterior of the posterior
+  condylar line. A slice qualifies when it has a real (>= 2 mm) cartilage
+  sulcus and the condyles haven't split yet; when the tendon cut doesn't,
+  the nearest one that does is used (a tie goes to the distal slice). With
+  the knee straight the patella often sits above the trochlea (16 of the 43
+  ORS knees), and the ridge then comes from the top of the trochlea.
+- Posterior condylar line: drawn on the ridge's slice, as in the paper's
+  Figure 2B (pbcl.pbcl_on_slice); the knee's usual PBCL (pbcl.find_pbcl,
+  the most posterior slice) when that slice has no qualifying notch.
 - Patella point: the most lateral voxel of the patella bone (largest 3D
   component), tie-broken to the middle of a flat lateral facet.
 
-    PTLTR = |(P_patella - P_ridge) . u_along_PBCL|
+    PTLTR = |(P_patella - P_ridge) . u_along_PCL|
+
+On the ORS cohort this agrees with the manual PTLTR about as well as the
+earlier ridge (the most anterior lateral point over the whole trochlea,
+against the usual PBCL): ICC 0.73 vs 0.75 -- see VALIDATION.md.
 """
 import numpy as np
 
 from . import qc_draw
-from .pbcl import pcl_axes
+from .pbcl import pcl_axes, pbcl_on_slice
 from .trochlea import most_anterior_component, find_peaks_and_sulcus
 from .volume import count_components
 
 COLUMNS = [
-    ('PTLTR_mm', 'mm', 'patella lateral margin to lateral trochlear ridge, along the PBCL (unsigned)'),
+    ('PTLTR_mm', 'mm', 'patella lateral margin to lateral trochlear ridge at the tendon cut, along the posterior condylar line on that slice (unsigned)'),
 ]
 
 
@@ -42,69 +57,88 @@ def find_lateral_patella_point(patella_mask, knee_side):
     return {'point': (int(target_x), int(ys_t[best]), int(zs_t[best])), 'note': None}
 
 
-def find_lateral_bony_apex(case, pbcl_result, knee_side, min_depth_mm=2.0):
-    """Lateral trochlear bony apex -- see module docstring. On each slice
-    the lateral side is everything lateral of that slice's own cartilage
-    sulcus (lateral = smaller x for a RIGHT knee). (Splitting at the
-    midpoint of the PBCL's two points instead made the search reach onto
-    the medial facet when those points shifted by a few voxels.)"""
+def find_ridge_slice(case, min_depth_mm=2.0):
+    """The slice the lateral trochlear ridge is marked on: the tendon cut,
+    or the nearest slice with a usable ridge (see the module docstring).
+    Returns {'z', 'sulcus_x' (that slice's sulcus), 'tendon_z', 'note'}."""
+    pz = np.where(case['patella'].any(axis=(0, 1)))[0]
+    if not len(pz):
+        return {'z': None, 'note': 'no patella bone found in this case'}
+    tendon_z = int(pz.min()) - 1
+    usable = _usable_slices(case, min_depth_mm)
+    if usable is None:
+        return {'z': None, 'note': 'no cartilage found in this case'}
+    if not usable:
+        return {'z': None, 'note': 'no slice with a detectable cartilaginous sulcus found in scan range'}
+    z = min(usable, key=lambda k: (abs(k - tendon_z), k))
+    return {'z': z, 'sulcus_x': usable[z], 'tendon_z': tendon_z, 'note': None}
+
+
+def _usable_slices(case, min_depth_mm):
+    """{z: sulcus x} for the slices from the top of the femoral cartilage
+    down to the condyle split that have a cartilage sulcus at least
+    min_depth_mm deep (None when there is no cartilage). The depth gate
+    leaves out the proximal shaft and the distal notch."""
     bone, cart = case['bone'], case['cartilage']
-    spacing_x = case['spacing'][0]
-    spacing_xy = np.array(case['spacing'][:2])
-    lateral_sign = -1 if knee_side == 'R' else 1
-
-    _, u_anterior = pcl_axes(pbcl_result['theta'])
-    pbcl_anchor_mm = np.array(pbcl_result['medial_pt'], dtype=float) * spacing_xy
-
     z_nonempty = np.where(cart.any(axis=(0, 1)))[0]
     if len(z_nonempty) == 0:
-        return {'point': None, 'note': 'no cartilage found in this case'}
-
-    best = None
+        return None
+    out = {}
     for z in range(int(z_nonempty.max()), int(z_nonempty.min()) - 1, -1):
         bone_sl = bone[:, :, z]
         _, comps = count_components(bone_sl)
         if len(comps) >= 2:
             break
-        cart_sl = cart[:, :, z]
-        component = most_anterior_component(cart_sl, bone_sl)
+        component = most_anterior_component(cart[:, :, z], bone_sl)
         if component.sum() == 0:
             continue
-        groove = find_peaks_and_sulcus(component, bone_sl, spacing_x, min_depth_mm=min_depth_mm)
-        if groove is None:
-            continue
-        xs, ys = np.where(bone_sl)
-        lateral_mask = np.sign(xs - groove['sulcus'][0]) == lateral_sign
-        if not lateral_mask.any():
-            continue
-        xs_lat, ys_lat = xs[lateral_mask], ys[lateral_mask]
-        pts_mm = np.stack([xs_lat, ys_lat], axis=1) * spacing_xy
-        offsets = (pts_mm - pbcl_anchor_mm) @ u_anterior
-        idx = int(np.argmax(offsets))
-        if best is None or offsets[idx] > best['offset']:
-            best = {'offset': float(offsets[idx]), 'x': int(xs_lat[idx]), 'y': int(ys_lat[idx]), 'z': z}
+        groove = find_peaks_and_sulcus(component, bone_sl, case['spacing'][0], min_depth_mm=min_depth_mm)
+        if groove is not None:
+            out[z] = groove['sulcus'][0]
+    return out
 
-    if best is None:
-        return {'point': None, 'note': 'no slice with a detectable cartilaginous sulcus found in scan range'}
-    return {'point': (best['x'], best['y'], best['z']), 'anterior_offset_mm': best['offset'], 'note': None}
+
+def ridge_apex(case, z, sulcus_x, pcl, knee_side):
+    """Apex of the lateral trochlear ridge on slice z: the femur bone point
+    lateral of the sulcus (lateral = smaller x for a RIGHT knee) furthest
+    anterior of the posterior condylar line pcl. (Splitting at the
+    midpoint of the line's two points instead let the search reach onto
+    the medial facet when those points shifted by a few voxels.)"""
+    spacing_xy = np.array(case['spacing'][:2])
+    xs, ys = np.where(case['bone'][:, :, z])
+    lateral = np.sign(xs - sulcus_x) == (-1 if knee_side == 'R' else 1)
+    if not lateral.any():
+        return None
+    _, u_anterior = pcl_axes(pcl['theta'])
+    offsets = (np.stack([xs[lateral], ys[lateral]], axis=1) * spacing_xy
+               - np.array(pcl['medial_pt'], dtype=float) * spacing_xy) @ u_anterior
+    i = int(np.argmax(offsets))
+    return {'point': (int(xs[lateral][i]), int(ys[lateral][i]), int(z)), 'anterior_offset_mm': float(offsets[i])}
 
 
 def compute(case, lm):
-    pbcl = lm.pbcl
-    if pbcl['theta'] is None:
-        return {'values': {'PTLTR_mm': None}, 'note': 'PBCL not found'}
-    apex = find_lateral_bony_apex(case, pbcl, lm.knee_side)
-    if apex['point'] is None:
-        return {'values': {'PTLTR_mm': None}, 'note': f"lateral bony apex not found -- {apex['note']}"}
+    empty = {'PTLTR_mm': None}
+    if lm.pbcl['theta'] is None:
+        return {'values': empty, 'note': 'PBCL not found'}
+    sl = find_ridge_slice(case)
+    if sl['z'] is None:
+        return {'values': empty, 'note': f"lateral trochlear ridge not found -- {sl['note']}"}
+    pcl = pbcl_on_slice(case, sl['z'], lm.knee_side)
+    if pcl['theta'] is None:
+        pcl = lm.pbcl
+    apex = ridge_apex(case, sl['z'], sl['sulcus_x'], pcl, lm.knee_side)
+    if apex is None:
+        return {'values': empty, 'note': 'lateral trochlear ridge not found -- no bone lateral of the sulcus'}
     patella = find_lateral_patella_point(case['patella'], lm.knee_side)
     if patella['point'] is None:
-        return {'values': {'PTLTR_mm': None}, 'note': patella['note']}
+        return {'values': empty, 'note': patella['note']}
 
     spacing_xy = np.array(case['spacing'][:2])
     v = np.array(patella['point'][:2]) * spacing_xy - np.array(apex['point'][:2]) * spacing_xy
-    u_along, _ = pcl_axes(pbcl['theta'])
+    u_along, _ = pcl_axes(pcl['theta'])
     return {'values': {'PTLTR_mm': abs(float(np.dot(v, u_along)))}, 'note': None,
-            'details': {'ridge_point': apex['point'], 'patella_point': patella['point']}}
+            'details': {'ridge_point': apex['point'], 'patella_point': patella['point'], 'tendon_z': sl['tendon_z'],
+                        'pcl': {k: pcl[k] for k in ('theta', 'z', 'medial_pt', 'lateral_pt')}}}
 
 
 def qc_payload(case, lm, result, margin_mm=8.0, patella_window_mm=25.0):
@@ -113,7 +147,8 @@ def qc_payload(case, lm, result, margin_mm=8.0, patella_window_mm=25.0):
     point to keep the panel framed on what's measured."""
     if result['values']['PTLTR_mm'] is None:
         return None
-    d, pbcl = result['details'], lm.pbcl
+    d = result['details']
+    pbcl = d['pcl']            # the posterior condylar line PTLTR was measured along (on the ridge's slice)
     sx, sy = case['spacing'][0], case['spacing'][1]
     gz, pz = d['ridge_point'][2], d['patella_point'][2]
     px, py = d['patella_point'][0], d['patella_point'][1]
