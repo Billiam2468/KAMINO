@@ -2,9 +2,12 @@
 
 <p align="center"><b>K</b>nee <b>A</b>natomy <b>M</b>easurements from <b>I</b>maging and <b>N</b>etwork <b>O</b>utput</p>
 
-| **K** | **A** | **M** | **I** | **N** | **O** |
-|:---:|:---:|:---:|:---:|:---:|:---:|
-| Knee | Anatomy | Measurements | Imaging | Network | Output |
+<div align="center">
+<table align="center">
+  <tr align="center"><th>K</th><th>A</th><th>M</th><th>I</th><th>N</th><th>O</th></tr>
+  <tr align="center"><td>Knee</td><td>Anatomy</td><td>Measurements</td><td>Imaging</td><td>Network</td><td>Output</td></tr>
+</table>
+</div>
 
 Automated patellofemoral and tibiofemoral measurements from knee MRI segmentations, with
 QC images of every measurement and an app for checking the landmarks a person should see.
@@ -17,22 +20,20 @@ Everything runs on your own computer; no scan or result leaves it.
 
 ## What it measures
 
-| Measurement | What it describes | Unit | Checked in the app |
-|---|---|---|---|
-| **Knee rotation angle (KRA)** | Rotation of the tibia relative to the femur: the tibial posterior condylar line against the femoral posterior bicondylar line (+ = tibial external rotation) | deg | Tibial line |
-| **TT-TG** | Side-to-side distance from the tibial tuberosity to the trochlear groove | mm | Tuberosity, cartilage sulcus |
-| **sTT-TG** | Front-to-back distance from the tibial tuberosity to the trochlear groove (− = tuberosity behind the groove) | mm | Tuberosity, cartilage sulcus |
-| **PTLTR** | How far the patella's lateral edge reaches past the lateral trochlear ridge | mm | – |
-| **Tibial tubercle lateralization (TTL)** | Position of the tuberosity across the tibia, as t / T (t: medial tibial edge to the tuberosity; T: tibial width) | ratio, mm | Tuberosity, tibial line |
-| **Lateral trochlear inclination (LTI)** | Slope of the lateral trochlear facet against the posterior condyles | deg | Cartilage sulcus |
-| **Sulcus angle** | Opening angle of the trochlear groove, on the cartilage surface | deg | Cartilage sulcus |
-| **Trochlear depth, facet depths** | Depth of the groove below its two facets, and each facet's height | mm | Cartilage sulcus |
-| **Facet lengths and asymmetry** | Length of the medial and lateral facets, and medial / lateral | mm, ratio | Cartilage sulcus |
-| **Trochlear bump height** | How far the trochlea (bone and cartilage) stands in front of the femoral shaft | mm | – |
-| **Caton-Deschamps index (CDI)** | Patellar height: patellar cartilage to the tibia, over the cartilage length | ratio | – |
+| Measurement | Stands for |
+|---|---|
+| **KRA** | Knee rotation angle |
+| **TT-TG** | Tibial tubercle–trochlear groove distance |
+| **sTT-TG** | Sagittal tibial tubercle–trochlear groove distance |
+| **PTLTR** | Patella–lateral trochlear ridge distance |
+| **TTL** | Tibial tubercle lateralization |
+| **LTI** | Lateral trochlear inclination |
+| **Sulcus angle** | Trochlear sulcus angle |
+| **Trochlear depth** | Trochlear groove depth, with the medial and lateral facet depths |
+| **Facet lengths** | Medial and lateral trochlear facet lengths, and their asymmetry |
+| **Bump height** | Trochlear bump height, bone and cartilage |
+| **CDI** | Caton-Deschamps index |
 
-- **Checked in the app:** the landmarks a person reviews before the value is final; the
-  others are fully automatic and shown in the QC grids.
 - **Exact definitions:** the column names in `measurements.csv` are in
   [Measurements](#measurements) below, and how each is calculated is in
   `Measurement methods.xlsx`.
