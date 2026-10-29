@@ -74,25 +74,30 @@ def qc_payload(case, lm, result, margin_mm=15.0):
     tpcl, t = lm.tpcl, lm.tuberosity
     sxy = case['spacing'][:2]
     wide = case['tibia'][:, :, tpcl['z']]
-    narrow = qc_draw.mask_slice(case['tibia'], t['point'][2])
+    narrow, below_mm = qc_draw.tuberosity_slice(case['tibia'], t['point'][2], case['spacing'][2])
     box = qc_draw.crop_box([wide, narrow], sxy, margin_mm, wide.shape)
     return {'box': box, 'spacing_xy': sxy,
             'tibia_tpcl': qc_draw.crop(wide, box), 'tibia_tt': qc_draw.crop(narrow, box),
             'tpcl_medial': tpcl['medial_pt'], 'tpcl_lateral': tpcl['lateral_pt'], 'tpcl_theta': tpcl['theta'],
             'medial_edge': result['details']['medial_edge_point'][:2],
             'lateral_edge': result['details']['lateral_edge_point'][:2],
-            'tubercle_point': t['point'], **result['values']}
+            'tubercle_point': t['point'], 'tt_below_mm': below_mm, **result['values']}
 
 
 def render_panel(ax, p, fontsize=9):
     """Tibia at the TPCL slice (green) with the tuberosity slice
-    see-through (orange), the TPCL (red), the T width drawn parallel to the
-    TPCL (gold) and the t bracket from the medial edge (purple)."""
+    see-through (orange; an outline of the lowest tibia slice when the
+    tuberosity is below the segmentation), the TPCL (red), the T width drawn
+    parallel to the TPCL (gold) and the t bracket from the medial edge
+    (purple)."""
     sx, sy = p['spacing_xy']
     box = p['box']
     X, Y = qc_draw.mesh_mm(box, p['spacing_xy'])
     qc_draw.plot_mask(ax, X, Y, p['tibia_tpcl'], 'Greens', 0.6)
-    qc_draw.plot_mask(ax, X, Y, p['tibia_tt'], 'Oranges', 0.4)
+    if p.get('tt_below_mm') is None:
+        qc_draw.plot_mask(ax, X, Y, p['tibia_tt'], 'Oranges', 0.4)
+    else:
+        qc_draw.stand_in_outline(ax, X, Y, p['tibia_tt'], p['tt_below_mm'], fontsize)
 
     x0, x1, y0, y1 = box
     span = max((x1 - x0) * sx, (y1 - y0) * sy)

@@ -60,28 +60,32 @@ def qc_payload(case, lm, result, margin_mm=15.0):
     sxy = case['spacing'][:2]
     gz, tz = g['point'][2], t['point'][2]
     fb, fc = case['bone'][:, :, gz], case['cartilage'][:, :, gz]
-    tb = qc_draw.mask_slice(case['tibia'], tz)
+    tb, below_mm = qc_draw.tuberosity_slice(case['tibia'], tz, case['spacing'][2])
     box = qc_draw.crop_box([fb, tb], sxy, margin_mm, fb.shape)
     return {'box': box, 'spacing_xy': sxy,
             'femur_bone': qc_draw.crop(fb, box), 'femur_cart': qc_draw.crop(fc, box),
             'tibia': qc_draw.crop(tb, box),
             'peak1': g['peak1'], 'peak2': g['peak2'],
-            'groove_point': g['point'], 'tubercle_point': t['point'],
+            'groove_point': g['point'], 'tubercle_point': t['point'], 'tt_below_mm': below_mm,
             'pbcl_medial': pbcl['medial_pt'], 'pbcl_lateral': pbcl['lateral_pt'], 'pbcl_theta': pbcl['theta'],
             **result['values']}
 
 
 def render_panel(ax, p, fontsize=6):
     """Groove slice (bone + cartilage) with the tuberosity slice see-through
-    on top, the facet chord, both landmarks, the PBCL axis at its own
-    position, each point's projection onto it, the TT-TG bracket along the
-    PBCL and the sTT-TG bracket perpendicular to it."""
+    on top (an outline of the lowest tibia slice when the tuberosity is below
+    the segmentation), the facet chord, both landmarks, the PBCL axis at its
+    own position, each point's projection onto it, the TT-TG bracket along
+    the PBCL and the sTT-TG bracket perpendicular to it."""
     sx, sy = p['spacing_xy']
     box = p['box']
     X, Y = qc_draw.mesh_mm(box, p['spacing_xy'])
     qc_draw.plot_mask(ax, X, Y, p['femur_bone'], 'Greens', 0.6)
     qc_draw.plot_mask(ax, X, Y, p['femur_cart'], 'Blues', 0.6)
-    qc_draw.plot_mask(ax, X, Y, p['tibia'], 'Oranges', 0.3)
+    if p.get('tt_below_mm') is None:
+        qc_draw.plot_mask(ax, X, Y, p['tibia'], 'Oranges', 0.3)
+    else:
+        qc_draw.stand_in_outline(ax, X, Y, p['tibia'], p['tt_below_mm'], fontsize)
 
     p1 = np.array(p['peak1']) * (sx, sy)
     p2 = np.array(p['peak2']) * (sx, sy)

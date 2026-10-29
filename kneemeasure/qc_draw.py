@@ -20,10 +20,28 @@ def crop_box(masks, spacing_xy, margin_mm, shape):
     return x0, x1, y0, y1
 
 
-def mask_slice(mask, z):
-    """Axial slice z of a 3D mask; empty when z is outside it (a tuberosity
-    marked on the axial series can lie below the segmentation)."""
-    return mask[:, :, z] if 0 <= z < mask.shape[2] else np.zeros(mask.shape[:2], dtype=mask.dtype)
+def tuberosity_slice(tibia, z, spacing_z):
+    """The tibia's axial slice through the tuberosity at z, and how far
+    below the segmentation the point is (mm; None when it's inside). A
+    tuberosity marked on the axial series can lie below the segmentation:
+    the lowest segmented tibia slice then stands in, to show the point
+    against (drawn as an outline, see stand_in_outline)."""
+    if 0 <= z < tibia.shape[2]:
+        return tibia[:, :, z], None
+    zs = np.where(tibia.any(axis=(0, 1)))[0]
+    if z >= 0 or not len(zs):
+        return np.zeros(tibia.shape[:2], dtype=tibia.dtype), None
+    lowest = int(zs.min())
+    return tibia[:, :, lowest], (lowest - z) * spacing_z
+
+
+def stand_in_outline(ax, X, Y, mask, below_mm, fontsize):
+    """The lowest segmented tibia slice as a dashed outline, with a note
+    that the tuberosity was marked below it (see tuberosity_slice)."""
+    if mask.any():
+        ax.contour(X, Y, mask.astype(float), levels=[0.5], colors='darkorange', linestyles='--', linewidths=1.2)
+    ax.text(0.5, 0.02, f"tibia outline: lowest segmented slice\n(tuberosity marked {below_mm:.0f} mm below it, on the axial scan)",
+            transform=ax.transAxes, ha='center', va='bottom', fontsize=fontsize, color='darkorange')
 
 
 def crop(mask, box):
