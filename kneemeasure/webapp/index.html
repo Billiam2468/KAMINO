@@ -945,7 +945,7 @@ document.addEventListener('keydown', e => {
 });
 
 // ---------------------------------------------------------------- setup page
-const P = {project: null, cases: [], browseFor: null, fsPath: null};
+const P = {project: null, cases: [], browseFor: null, fsPath: null, listRoot: null};
 function esc(t) { return String(t ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c])); }
 
 async function loadProject() {
@@ -975,7 +975,9 @@ function renderProject(job) {
     ? `<div class="alert warn">Set the knee side for the ${p.n_missing_side} scan(s) listed below before measuring. Your choice is saved, so you'll only be asked once.</div>` : '';
   // only the scans that need a side, while any do; otherwise every scan, folded away
   const rows = p.n_missing_side ? P.cases.filter(c => !c.side) : P.cases;
-  $('scanList').open = !!p.n_missing_side;
+  // open/close it only for a newly opened project (or when sides are missing), so editing a side leaves it as it was
+  if (P.listRoot !== p.root) { P.listRoot = p.root; $('scanList').open = !!p.n_missing_side; }
+  else if (p.n_missing_side) $('scanList').open = true;
   $('scanListSum').textContent = p.n_missing_side ? `Scans without a knee side (${p.n_missing_side})` : `All ${p.n_cases} scans and their knee sides`;
   $('caseRows').innerHTML = rows.map(c => `
     <tr class="${c.side ? '' : 'missing'}">
