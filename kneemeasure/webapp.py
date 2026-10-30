@@ -405,6 +405,9 @@ class App:
             'values': now['values'],
             'has_scan': e['scan'] is not None, 'scan_note': e['scan_note'],
             'axial_z_below': e['axial'].z_below if e['axial'] is not None else None, 'axial_note': e['axial_note'],
+            # grouped where the tuberosity is, so that part of a tilted axial shows one clean slice
+            'axial_runs': e['axial'].slice_runs(*(auto['point'][:2] if auto.get('point') else ()))
+                          if e['axial'] is not None else None,
         }
 
     def slice_data(self, code, plane, index, src='dixon'):

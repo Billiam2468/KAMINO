@@ -272,6 +272,28 @@ class AxialDisplay:
         c = _scan_index(self._inv, self._o, self.seg_header, np.full(a.shape, float(index)), a, b)
         return _sample_inplane_linear(self.raw, c)
 
+    def slice_runs(self, x=None, y=None):
+        """The segmentation's slices z = -z_below ... nz - 1 grouped by the
+        axial slice shown at voxel column (x, y) (default: the middle of the
+        view; its slices are several times thicker): [[lo, hi, mid], ...]
+        going up, mid the middle of the run, where a point marked on that
+        axial slice goes. An axial tilted against the segmentation shows
+        parts of the next slice away from (x, y). Slices outside the axial
+        series are a run each."""
+        nx, ny, nz = self.shape
+        x, y = (nx - 1) / 2 if x is None else x, (ny - 1) / 2 if y is None else y
+        z = np.arange(-self.z_below, nz, dtype=float)
+        k = np.rint(_scan_index(self._inv, self._o, self.seg_header, np.full(z.shape, float(x)),
+                                np.full(z.shape, float(y)), z)[:, 2]).astype(int)
+        k[(k < 0) | (k >= self.raw.shape[2])] = -1
+        runs = []
+        for zi, ki in zip(z.astype(int), k):
+            if runs and ki >= 0 and ki == runs[-1][3]:
+                runs[-1][1] = int(zi)
+            else:
+                runs.append([int(zi), int(zi), 0, ki])
+        return [[lo, hi, (lo + hi) // 2] for lo, hi, _, _ in runs]
+
 
 def find_scan(scans_dir, code):
     """The scan for one case in a scans folder: <code>/water.nii.gz (the

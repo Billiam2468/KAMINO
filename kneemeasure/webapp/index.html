@@ -311,7 +311,7 @@
       <kbd>&uarr;</kbd> <kbd>&darr;</kbd>: axial slices &middot; <kbd>&larr;</kbd> <kbd>&rarr;</kbd>: sagittal slices<br>
       <kbd>G</kbd>: go to the automatic one &middot; <kbd>+</kbd> <kbd>&minus;</kbd>: zoom<br>
       <kbd>J</kbd> <kbd>K</kbd>: next / previous scan in the list<br>
-      <kbd>V</kbd>: Dixon / axial scan (tuberosity, when there's an axial). Scrolling below the Dixon's bottom slice switches to the axial scan.<br>
+      <kbd>V</kbd>: Dixon / axial scan (tuberosity, when there's an axial). Scrolling below the Dixon's bottom slice switches to the axial scan, where each step is one axial slice.<br>
       The white lines show where the other view's slice cuts through.</div>
   </aside>
 </main>
@@ -341,9 +341,15 @@ function zlo() { return S.src === 'axial' ? -S.info.axial_z_below : 0; }
 function setSrc(src) {
   if (src === S.src || (src === 'axial' && !hasAxial())) return;
   S.src = src; S.slices = new Map(); S.sag = new Map();
-  $('zslider').min = zlo(); S.z = Math.max(zlo(), S.z);
+  $('zslider').min = zlo(); S.z = snapZ(Math.max(zlo(), S.z));
   renderInfo(); draw();
 }
+// the axial series' slices are several times thicker than the segmentation's: on it, the segmentation slices
+// showing the same axial slice (S.info.axial_runs) count as one, so a scroll moves a whole axial slice and a point
+// goes on the middle one
+function runIndex(z) { const R = S.src === 'axial' && S.info.axial_runs; return R ? R.findIndex(([lo, hi]) => z >= lo && z <= hi) : -1; }
+function snapZ(z) { const i = runIndex(z); return i < 0 ? z : S.info.axial_runs[i][2]; }
+function sameSlice(a, b) { const i = runIndex(a); return i < 0 ? a === b : i === runIndex(b); }
 function autoOf(info) { return STEP === 'tpcl' ? info.tpcl_auto : info.sulcus_auto; }
 function q(path) { return path + (path.includes('?') ? '&' : '?') + 'step=' + STEP; }
 
@@ -469,7 +475,11 @@ async function fetchSlice(plane, idx) {
 // Fetch the next few slices in the direction of scrolling (and one behind) in the background, so scrolling rarely
 // waits for the server.
 function warm(plane, cur, dir, lo, hi) {
-  for (const d of [1, 2, 3, 4, -1]) { const k = cur + d * (dir || 1); if (k >= lo && k <= hi) getSlice(plane, k).catch(() => {}); }
+  const i = plane === 'axial' ? runIndex(cur) : -1, R = S.info.axial_runs;
+  for (const d of [1, 2, 3, 4, -1]) {
+    const k = i < 0 ? cur + d * (dir || 1) : (R[i + d * (dir || 1)] || [])[2];
+    if (k >= lo && k <= hi) getSlice(plane, k).catch(() => {});
+  }
 }
 
 // Fit the axial view to the whole knee as seen from above (every slice), plus a small margin, so
@@ -613,9 +623,9 @@ async function draw() {
   const ap = STEP === 'tt' ? S.info.auto_point : null;
   if (STEP === 'tt') {
     if (ap) { const [x, y] = toA(ap[0], ap[1]);
-      marker(ctx, x, y, getVar('--auto'), ap[2] === S.z, ap[2] === S.z ? 'auto' : `auto (z ${ap[2]})`); }
+      marker(ctx, x, y, getVar('--auto'), sameSlice(S.z, ap[2]), sameSlice(S.z, ap[2]) ? 'auto' : `auto (z ${ap[2]})`); }
     if (S.mine) { const [x, y] = toA(S.mine[0], S.mine[1]);
-      marker(ctx, x, y, getVar('--mine'), S.mine[2] === S.z, S.mine[2] === S.z ? 'yours' : `yours (z ${S.mine[2]})`); }
+      marker(ctx, x, y, getVar('--mine'), sameSlice(S.z, S.mine[2]), sameSlice(S.z, S.mine[2]) ? 'yours' : `yours (z ${S.mine[2]})`); }
   } else {
     const drawLine = (line, color, label, dashed, slot) => {
       const [ax, ay] = toA(line.medial_pt[0], line.medial_pt[1]), [bx, by] = toA(line.lateral_pt[0], line.lateral_pt[1]);
@@ -845,8 +855,10 @@ async function watchLoading() {
 function setZ(z) {
   // scrolling down past the Dixon's bottom slice carries on into the axial series, which reaches further down
   if (z < 0 && S.src === 'dixon' && hasAxial()) { setSrc('axial'); toast('Below the Dixon: showing the axial scan'); }
+  z = snapZ(z);
   S.dirZ = Math.sign(z - S.z) || S.dirZ; S.z = Math.max(zlo(), Math.min(S.info.shape[2] - 1, z)); if (STEP !== 'tt') renderInfo(); draw();
 }
+function stepZ(d) { const i = runIndex(S.z), R = S.info.axial_runs; if (i < 0) setZ(S.z + d); else if (R[i + d]) setZ(R[i + d][2]); }
 function setX(x) { S.dirX = Math.sign(x - S.x) || S.dirX; S.x = Math.max(0, Math.min(S.info.shape[0] - 1, x)); draw(); }
 
 // Axial view: a click places a point; a drag pans; Ctrl+wheel zooms at the cursor; wheel scrolls slices.
@@ -881,6 +893,7 @@ function axialClick(e) {
     renderInfo(); draw(); return;
   }
   // the axial scan is finer than the segmentation: keep its point sub-voxel
+  S.z = snapZ(S.z);
   S.mine = S.src === 'axial' ? [+x.toFixed(2), +y.toFixed(2), S.z] : [Math.round(x), Math.round(y), S.z];
   S.mineSrc = S.src === 'axial' ? 'axial' : null;
   S.x = Math.round(x);
@@ -893,13 +906,13 @@ $('sagittal').addEventListener('click', e => {
   const y = S.src === 'axial' ? +yr.toFixed(2) : Math.round(yr);
   if (z < zlo() || z >= S.info.shape[2]) return;
   if (STEP !== 'tt') { setZ(z); renderInfo(); return; }
-  S.mine = [S.x, y, z]; S.mineSrc = S.src === 'axial' ? 'axial' : null; S.z = z;
+  S.z = snapZ(z); S.mine = [S.x, y, S.z]; S.mineSrc = S.src === 'axial' ? 'axial' : null;
   renderInfo(); draw();
 });
 $('axial').addEventListener('wheel', e => {
   e.preventDefault();
   if (e.ctrlKey || e.metaKey) { const [x, y] = axialVoxel(e); zoomBy(e.deltaY < 0 ? 1.15 : 1 / 1.15, x, y); }
-  else setZ(S.z + (e.deltaY < 0 ? 1 : -1));
+  else stepZ(e.deltaY < 0 ? 1 : -1);
 }, {passive: false});
 $('sagittal').addEventListener('wheel', e => { e.preventDefault(); setX(S.x + (e.deltaY < 0 ? 1 : -1)); }, {passive: false});
 $('zslider').addEventListener('input', e => setZ(+e.target.value));
@@ -924,8 +937,8 @@ document.addEventListener('keydown', e => {
   if (!location.hash.endsWith('-review') || !S.info) return;
   const k = e.key;
   if (k === 's' || k === 'S') { S.segOn = !S.segOn; draw(); return; }
-  if (k === 'ArrowUp') { e.preventDefault(); setZ(S.z + 1); }
-  else if (k === 'ArrowDown') { e.preventDefault(); setZ(S.z - 1); }
+  if (k === 'ArrowUp') { e.preventDefault(); stepZ(1); }
+  else if (k === 'ArrowDown') { e.preventDefault(); stepZ(-1); }
   else if (k === 'ArrowLeft') { e.preventDefault(); setX(S.x - 1); }
   else if (k === 'ArrowRight') { e.preventDefault(); setX(S.x + 1); }
   else if (k === 'a' || k === 'A') { if (STEP === 'tt' || autoOf(S.info)) decide('accepted'); }
