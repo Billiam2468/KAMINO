@@ -3,7 +3,7 @@ name: Build the downloadable app
 # Pushing a version tag (e.g. v0.2.0, matching kneemeasure.__version__) builds the
 # Windows and Mac apps and attaches them to that GitHub release. "Run workflow" on
 # the Actions tab builds them without releasing (download them from the run's
-# artifacts). See "Releasing a new version" in the README.
+# artifacts). See "Releasing a new version" in docs/development.md.
 on:
   push:
     tags: ['v*']

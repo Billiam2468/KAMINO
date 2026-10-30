@@ -21,7 +21,7 @@ python -m kneemeasure validate "<run>/PFI ORS Validation" --manual "<sheet>" --i
 
 - Bias = automated - manual. LoA = 95% limits of agreement.
 - ICC(2,1) = two-way random, absolute agreement.
-- "TT in window" excludes cases with under 37 mm of tibia in the scan (see the README).
+- "TT in window" excludes cases with under 37 mm of tibia in the scan (see [docs/measurements.md](docs/measurements.md#tuberosity-out-of-the-field-of-view)).
 
 | measurement | manual column | knees | bias | LoA | MAE | r | ICC(2,1) |
 |---|---|---|---|---|---|---|---|
