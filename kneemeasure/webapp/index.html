@@ -1107,10 +1107,10 @@ $('fsSelect').onclick = async () => {
 };
 
 // ---------------------------------------------------------------- prescreen
-const PS = {thumbs: {}, sel: null, cases: [], timer: null};
+const PS = {thumbs: {}, sel: new Set(), cases: [], timer: null};
 
 async function openPrescreen() {
-  PS.sel = null; PS.thumbs = {};
+  PS.sel = new Set(); PS.thumbs = {};     // nothing selected until you click
   $('grid').innerHTML = ''; delete $('grid').dataset.order;      // another step's tiles may have had the same order
   const st = await api(q('state'));
   PS.cases = st.cases;
@@ -1131,15 +1131,9 @@ async function pollThumbs() {
   if (!j) return;
   Object.assign(PS.thumbs, j.thumbs);
   PS.cases = j.state.cases;
-  if (PS.sel === null) {        // default selection: flagged, or no automatic point
-    PS.sel = new Set(PS.cases.filter(c => c.status === 'unreviewed' && c.flag).map(c => c.case));
-  }
-  for (const [code, t] of Object.entries(j.thumbs)) if (!t.auto && isTodo(code)) PS.sel.add(code);
   renderGrid();
   if (j.pending.length) PS.timer = setTimeout(pollThumbs, 1200);
 }
-
-function isTodo(code) { const c = PS.cases.find(x => x.case === code); return c && c.status === 'unreviewed'; }
 
 function renderGrid() {
   const hide = $('psHideDone').checked;
@@ -1175,9 +1169,10 @@ function renderGrid() {
     }
     if (t) { d.classList.toggle('sel', PS.sel.has(c.case)); d.classList.toggle('done', c.status !== 'unreviewed'); }
   }
-  const {accept, review, waiting} = prescreenPlan();
+  const {accept, review, noAuto, waiting} = prescreenPlan();
   const todo = PS.cases.filter(c => c.status === 'unreviewed').length;
-  $('psCount').textContent = `${todo} without a decision · ${review.length} selected` + (waiting ? ` · ${waiting} still loading` : '');
+  $('psCount').innerHTML = `${todo} without a decision · ${review.length} selected` + (waiting ? ` · ${waiting} still loading` : '') +
+    (noAuto.length ? ` · <span style="color: var(--warn)">${noAuto.length} unselected with no automatic ${THING[STEP]}</span>` : '');
   const btn = $('psApply');
   btn.disabled = waiting > 0;
   btn.textContent = waiting ? 'Waiting for all scans to load…'
@@ -1192,15 +1187,16 @@ function renderGrid() {
 
 // What the button will do: accept the automatic point for unselected scans that have no decision yet
 // (and have an automatic point); open every selected scan, decided or not, in the review.
+// Unselected scans with no decision and no automatic point are left without one (noAuto).
 function prescreenPlan() {
-  const accept = [], review = [];
+  const accept = [], review = [], noAuto = [];
   let waiting = 0;
   for (const c of PS.cases) {
     const t = PS.thumbs[c.case];
     if (PS.sel.has(c.case)) review.push(c.case);
-    else if (c.status === 'unreviewed') { if (!t) waiting++; else if (t.auto) accept.push(c.case); }
+    else if (c.status === 'unreviewed') { if (!t) waiting++; else (t.auto ? accept : noAuto).push(c.case); }
   }
-  return {accept, review, waiting};
+  return {accept, review, noAuto, waiting};
 }
 
 function badgeClass(c) { return c.status !== 'unreviewed' ? 'b-' + c.status : (c.flag ? 'b-flag' : 'b-unreviewed'); }
@@ -1263,7 +1259,9 @@ $('psAll').onclick = () => { PS.sel = new Set(PS.cases.filter(c => c.status === 
 $('psHideDone').onchange = renderGrid;
 $('psSeg').onchange = drawTiles;
 $('psApply').onclick = async () => {
-  const {accept, review} = prescreenPlan();
+  const {accept, review, noAuto} = prescreenPlan();
+  if (noAuto.length && !confirm(`${noAuto.length} unselected scan(s) have no automatic ${THING[STEP]}, so they will be left ` +
+      `without a decision:\n\n${noAuto.join(', ')}\n\nSelect them to review them. Go on without them?`)) return;
   try {
     if (accept.length) {
       const r = await api('prescreen/accept', {cases: accept, step: STEP});

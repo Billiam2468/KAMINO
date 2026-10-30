@@ -199,12 +199,14 @@ A grid with one tile per scan.
 - **Each tile:** the axial and sagittal slices through the automatic tuberosity point, over
   the MRI, with the scan's TT-TG and tibia length. A red dashed line marks the bottom of
   the scan when the tibia reaches it.
-- **Selecting:** click the tiles that need a closer look. Scans flagged as maybe out of
-  view, or without an automatic point, start out selected.
+- **Selecting:** nothing starts out selected: click the tiles that need a closer look.
+  "Select flagged" picks the scans flagged as maybe out of view or without an automatic
+  point.
 - **"Accept N · review M":** accepts the automatic point for every unselected scan
   (recorded as "accepted at prescreen") and opens the review with only the selected scans.
   "show all" in the review list brings the rest back. With no scan selected, the button
-  accepts the rest and goes on to the next step.
+  accepts the rest and goes on to the next step. If an unselected scan has no automatic point, the page
+  warns you first, since that scan would be left without a decision.
 - **After a review:** a tile shows the decided point (green) instead of the automatic one,
   on the axial scan if it was marked there.
 - **Loading:** tiles appear as the scans load in the background, a few seconds for a
@@ -274,8 +276,8 @@ The tibial posterior condylar line (TPCL) sets the rotation reference for **KRA*
 **TTL**.
 
 - **Prescreen:** a tile per scan shows the tibial slice the automatic line was taken from,
-  with the line, KRA and TTL. Scans with no automatic line, or a KRA beyond ±15°, start out
-  selected. Unselected scans get the automatic line accepted.
+  with the line, KRA and TTL. "Select flagged" picks the scans with no automatic line, or
+  a KRA beyond ±15°. Unselected scans get the automatic line accepted.
 - **Review:** for each selected scan:
   - **Accept the automatic line** (`A`).
   - **Use the line on this slice** (`Enter`): scroll to a slice where both posterior
@@ -296,8 +298,8 @@ angle**, **LTI**, the **facet depths and lengths** and **trochlear depth**, and 
 is the trochlear groove point for **TT-TG**.
 
 - **Prescreen:** a tile per scan shows the front of the femur on the automatic slice, with
-  the facet peaks and sulcus, the sulcus angle and TT-TG. Scans with no automatic sulcus,
-  or a sulcus angle outside 140–170°, start out selected. Unselected scans get the
+  the facet peaks and sulcus, the sulcus angle and TT-TG. "Select flagged" picks the scans
+  with no automatic sulcus, or a sulcus angle outside 140–170°. Unselected scans get the
   automatic sulcus accepted.
 - **Review:** for each selected scan:
   - **Accept the automatic sulcus** (`A`).
