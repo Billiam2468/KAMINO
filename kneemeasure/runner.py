@@ -38,7 +38,7 @@ from . import __version__, kra, tt_tg, tibial_pcl, stats, plots, qc, slicer
 from . import review as review_store
 from .cache import ResultCache, cache_key, code_fingerprint, file_sha1
 from .laterality import LateralityTable, resolve
-from .pipeline import MEASURES, MEASURE_BY_KEY, measure_case, value_columns
+from .pipeline import MEASURES, MEASURE_BY_KEY, TT_WINDOW_MIN_TIBIA_MM, measure_case, value_columns
 from .validation import COLUMNS as VALIDATION_COLUMNS
 from .volume import find_segmentations, case_name_from_path, header_laterality
 
@@ -93,6 +93,21 @@ def _fmt(v, nd=4):
             return ''
         return round(float(v), nd)
     return v
+
+
+def _tt_out_of_window(row):
+    """A measurements.csv row's likely out-of-window tuberosity (see
+    pipeline._tuberosity_window_check). The file has no column for it, so
+    it's recovered from TT_review and tibia_length_mm; older files had one."""
+    if row.get('TT_possibly_out_of_window') not in (None, ''):
+        return str(row['TT_possibly_out_of_window']) == '1'
+    review = row.get('TT_review') or 'auto'
+    if review != 'auto':
+        return review in ('not in view', 'misaligned')
+    try:
+        return float(row.get('tibia_length_mm')) < TT_WINDOW_MIN_TIBIA_MM
+    except (TypeError, ValueError):
+        return False
 
 
 def write_csv(path, rows, columns):
@@ -308,11 +323,11 @@ def run_cohort(inputs, out_dir, laterality=None, id_columns=None, side_column=No
 
     if extras:
         m_cols = (['case', 'knee_side', 'laterality_source'] + info_cols + carry + cols
-                  + ['TT_possibly_out_of_window', 'TT_review', 'TPCL_review', 'Sulcus_review', 'tibia_length_mm']
+                  + ['TT_review', 'TPCL_review', 'Sulcus_review', 'tibia_length_mm']
                   + [f'note_{m.key}' for m in measures] + ['segmentation_warnings', 'error', 'file', 'file_sha1'])
     else:
         m_cols = (['case', 'knee_side', 'laterality_source'] + info_cols + carry + cols
-                  + ['TT_possibly_out_of_window', 'TT_review', 'TPCL_review', 'Sulcus_review', 'tibia_length_mm', 'notes', 'file'])
+                  + ['TT_review', 'TPCL_review', 'Sulcus_review', 'tibia_length_mm', 'notes', 'file'])
     changes = _archive_and_diff(out_dir, m_rows, cols) if extras else []
     write_csv(os.path.join(out_dir, 'measurements.csv'), m_rows, m_cols)
     measured = [r for r in m_rows if not r['error']]
@@ -554,7 +569,7 @@ def compare_runs(groups, out_dir, measure_keys=None, tt_in_window_only=True):
             data[name] = [r for r in csv.DictReader(fh) if not r.get('error')]
         if tt_in_window_only:
             for r in data[name]:
-                if r.get('TT_possibly_out_of_window') == '1':
+                if _tt_out_of_window(r):
                     for c in TT_DEPENDENT:
                         r[c] = ''
     table, pairwise = stats.compare_groups(data, cols, units)
@@ -611,7 +626,7 @@ def validate_run(run, manual, id_column, pairs, out_dir, side_column=None, exclu
     for auto_col, man_col in pairs:
         subsets = [('all', matched)]
         if auto_col in TT_DEPENDENT:
-            subsets.append(('TT in window', [(a, m) for a, m in matched if a.get('TT_possibly_out_of_window') != '1']))
+            subsets.append(('TT in window', [(a, m) for a, m in matched if not _tt_out_of_window(a)]))
         for subset, rows in subsets:
             xy = []
             for a, m in rows:
@@ -622,7 +637,7 @@ def validate_run(run, manual, id_column, pairs, out_dir, side_column=None, exclu
                         case_rows.append({'case': a['case'], 'knee_side': a.get('knee_side'),
                                           'automated_column': auto_col, 'manual_column': man_col,
                                           'automated': x, 'manual': y, 'difference': x - y,
-                                          'TT_possibly_out_of_window': a.get('TT_possibly_out_of_window')})
+                                          'TT_possibly_out_of_window': int(_tt_out_of_window(a))})
             res = agreement.agreement(xy)
             results.append({'automated_column': auto_col, 'manual_column': man_col, 'subset': subset, **res})
             label = auto_col if sum(a == auto_col for a, _ in pairs) == 1 else f'{auto_col} vs {man_col[:24]}'

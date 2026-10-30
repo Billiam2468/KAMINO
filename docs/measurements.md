@@ -25,7 +25,6 @@ All are computed in 3D from the segmentation.
 | `medial_/lateral_facet_length_mm`, `facet_asymmetry_ratio` | sulcus to facet-peak distances; asymmetry = medial / lateral |
 | `bone_bump_mm`, `cartilage_bump_mm` | trochlear bump height above the anterior femoral cortex line, on the sagittal slice through the deepest groove |
 | `CDI`, `CDI_numerator_mm`, `patella_cartilage_length_mm` | Caton-Deschamps index on the sagittal slice with the longest patellar cartilage |
-| `TT_possibly_out_of_window` | 1 = less than 37 mm of tibia in the scan, so the tuberosity is probably outside the field of view (see [below](#tuberosity-out-of-the-field-of-view)) |
 
 ## Landmark rules
 
@@ -51,7 +50,7 @@ cohort, checked against the "out of window" column in the tracking table:
 - every in-window case had at least 38 mm of tibia segmented;
 - a threshold of under 37 mm caught 12 of 15 out-of-window cases with 0 of 30 false flags.
 
-These cases are measured but flagged. `statistics.csv` (with `--extras`), `compare` and `validate` also
+These cases are measured but flagged (a caution in `notes`). `statistics.csv` (with `--extras`), `compare` and `validate` also
 report TT-dependent results with them excluded. In the app, the tuberosity of a flagged scan
 can be marked on the axial scan instead, which usually reaches it (see the tuberosity review
 in [app.md](app.md#3-tuberosity-review)); a reviewed scan is no longer flagged.

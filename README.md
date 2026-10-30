@@ -41,8 +41,6 @@ The file also has, per scan:
 - **Knee side.**
 - **Review columns:** whether each landmark was checked in the app (`TT_review`,
   `TPCL_review`, `Sulcus_review`).
-- **`TT_possibly_out_of_window`:** 1 when under 37 mm of tibia is in the scan, so the
-  tuberosity is probably outside the field of view.
 - **`notes`:** why a measurement failed, and segmentation warnings.
 
 Exact definitions, validation against manual measurements and limitations:

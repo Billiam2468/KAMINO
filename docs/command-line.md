@@ -148,7 +148,7 @@ By default a run writes only:
 
 | file | contents |
 |---|---|
-| `measurements.csv` | one row per scan: every value, knee side and where it came from, segmentation source, `TT_review` and the out-of-window flag, tibia length, and `notes` (why a measurement failed, segmentation warnings, cautions) |
+| `measurements.csv` | one row per scan: every value, knee side and where it came from, segmentation source, the landmark reviews (`TT_review`, `TPCL_review`, `Sulcus_review`), tibia length, and `notes` (why a measurement failed, segmentation warnings, cautions) |
 | `qc/<measurement>_grid.png` | QC overlays for every scan (paginated at 30), plus a segmentation overview grid |
 | `.kneemeasure/` | hidden: the rerun cache, `run_info.json` (inputs, parameters, versions) and `log.txt` |
 
