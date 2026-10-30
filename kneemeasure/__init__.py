@@ -13,5 +13,5 @@ Python use:
     from kneemeasure.runner import run_cohort
     run_cohort(['segs/'], 'results/', laterality='mapping.csv')
 """
-__version__ = '0.2.1'
+__version__ = '0.2.2'
 GITHUB_REPO = 'Billiam2468/KAMINO'     # where releases (the downloadable app) are published
