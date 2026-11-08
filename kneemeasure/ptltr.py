@@ -21,17 +21,20 @@ Landmarks, following the paper's method:
 - Posterior condylar line: drawn on the ridge's slice, as in the paper's
   Figure 2B (pbcl.pbcl_on_slice); the knee's usual PBCL (pbcl.find_pbcl,
   the most posterior slice) when that slice has no qualifying notch.
-- Patella point: the most lateral voxel of the patella bone (largest 3D
-  component), tie-broken to the middle of a flat lateral facet.
+- Patella point: the patella's lateral border as a reader marks it -- the
+  lateral end of its axis on its widest slice, the PW_max line
+  (patella_width.max_chord; Chen 2024 / Staubli), at the bone's edge. On a
+  strongly tilted patella that corner sits a little medial of the bone's
+  furthest-lateral bulge (up to 2.7 mm in the ORS cohort); the corner is
+  what's marked.
 
     PTLTR = |(P_patella - P_ridge) . u_along_PCL|
 
-P_patella is that voxel's lateral edge (half a voxel lateral of its
-centre), so the distance runs from the patella's edge, as measured by hand.
-
 On the ORS cohort this agrees with the manual PTLTR about as well as the
 earlier ridge (the most anterior lateral point over the whole trochlea,
-against the usual PBCL): ICC 0.73 vs 0.75 -- see VALIDATION.md.
+against the usual PBCL), and the lateral-border patella point as well as
+the earlier furthest-x voxel: ICC 0.73-0.75 throughout -- see
+VALIDATION.md.
 """
 import numpy as np
 
@@ -43,21 +46,6 @@ from .volume import count_components
 COLUMNS = [
     ('PTLTR_mm', 'mm', 'patella lateral margin to lateral trochlear ridge at the tendon cut, along the posterior condylar line on that slice (unsigned)'),
 ]
-
-
-def find_lateral_patella_point(patella_mask, knee_side):
-    """Most lateral voxel of the patella bone -- lateral = smaller x for a
-    RIGHT knee, larger x for a LEFT knee. Among voxels tied at the extreme
-    x, the one closest to their median (y, z)."""
-    xs, ys, zs = np.where(patella_mask)
-    if len(xs) == 0:
-        return {'point': None, 'note': 'no patella bone found in this case'}
-    target_x = xs.min() if knee_side == 'R' else xs.max()
-    tied = xs == target_x
-    ys_t, zs_t = ys[tied], zs[tied]
-    y_med, z_med = np.median(ys_t), np.median(zs_t)
-    best = int(np.argmin((ys_t - y_med) ** 2 + (zs_t - z_med) ** 2))
-    return {'point': (int(target_x), int(ys_t[best]), int(zs_t[best])), 'note': None}
 
 
 def find_ridge_slice(case, min_depth_mm=2.0):
@@ -132,12 +120,11 @@ def compute(case, lm):
     apex = ridge_apex(case, sl['z'], sl['sulcus_x'], pcl, lm.knee_side)
     if apex is None:
         return {'values': empty, 'note': 'lateral trochlear ridge not found -- no bone lateral of the sulcus'}
-    patella = find_lateral_patella_point(case['patella'], lm.knee_side)
-    if patella['point'] is None:
-        return {'values': empty, 'note': patella['note']}
+    axis = lm.patella_axis
+    if axis is None:
+        return {'values': empty, 'note': 'no patella bone found in this case'}
 
-    px, py, pz = patella['point']
-    edge = (px + (0.5 if lm.knee_side == 'L' else -0.5), py, pz)     # lateral = larger x for a left knee
+    edge = (*axis['lateral_end'], axis['z'])
     spacing_xy = np.array(case['spacing'][:2])
     v = np.array(edge[:2]) * spacing_xy - np.array(apex['point'][:2]) * spacing_xy
     u_along, _ = pcl_axes(pcl['theta'])

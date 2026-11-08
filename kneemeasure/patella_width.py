@@ -137,6 +137,22 @@ def tilt_deg(medial_end, lateral_end, spacing_xy, pbcl_theta, knee_side):
     return side * float(np.degrees(np.arctan2(cross, float(toward_lateral @ d))))
 
 
+def find_patella_axis(case, knee_side):
+    """The PW_max slice and line: the widest slice's patella axis (see
+    max_chord), as {'length_mm', 'medial_end', 'lateral_end', 'z'} (ends in
+    index units, edge to edge), or None without patella bone. Its lateral
+    end is also PTLTR's patella point."""
+    bone = case.get('patella')
+    if bone is None:
+        bone = largest_component_3d(case['labels'] == PAT_B)
+    best = None
+    for z in np.where(bone.any(axis=(0, 1)))[0]:
+        length, med, lat = max_chord(bone[:, :, z], case['spacing'][:2], knee_side)
+        if best is None or length > best['length_mm']:
+            best = {'length_mm': length, 'medial_end': tuple(med), 'lateral_end': tuple(lat), 'z': int(z)}
+    return best
+
+
 def _n_pieces(mask2d):
     return ndimage.label(mask2d, structure=np.ones((3, 3)))[1]
 
@@ -187,14 +203,9 @@ def compute(case, lm):
             notes.append(f'patellar cartilage is in more than one piece on the PW_effective slice (z {z})')
 
     # PW_max: longest bony chord over all slices, and the tilt on that slice
-    if bone_raw.any():
-        bone = case['patella'] if case.get('patella') is not None else largest_component_3d(bone_raw)
-        best = None
-        for z in np.where(bone.any(axis=(0, 1)))[0]:
-            length, med, lat = max_chord(bone[:, :, z], sxy, lm.knee_side)
-            if best is None or length > best[0]:
-                best = (length, med, lat, int(z))
-        length, med, lat, z = best
+    axis = lm.patella_axis if bone_raw.any() else None
+    if axis is not None:
+        length, med, lat, z = axis['length_mm'], axis['medial_end'], axis['lateral_end'], axis['z']
         values.update(PW_max_mm=length, PW_max_slice=z)
         details['max'] = {'z': z, 'medial_end': tuple(med), 'lateral_end': tuple(lat)}
         if _n_pieces(bone_raw[:, :, z]) > 1:

@@ -11,6 +11,7 @@ trochlear reference slice's sulcus and facet peaks.
 """
 from functools import cached_property
 
+from .patella_width import find_patella_axis
 from .pbcl import find_pbcl
 from .tibial_pcl import find_tibial_pcl
 from .tibial_tuberosity import find_tibial_tuberosity
@@ -59,6 +60,12 @@ class Landmarks:
                 'peak1': tuple(review['peaks'][0]), 'peak2': tuple(review['peaks'][1]),
                 'point': (sulcus[0], sulcus[1], z), 'hull_points': None,
                 'bone_slice': bone_sl, 'cartilage_component': cart_sl, 'note': None, 'review': review['status']}
+
+    @cached_property
+    def patella_axis(self):
+        """The PW_max line on the patella's widest slice; its lateral end is
+        PTLTR's patella point too."""
+        return find_patella_axis(self.case, self.knee_side)
 
     @cached_property
     def deepest_groove(self):

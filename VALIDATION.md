@@ -28,7 +28,7 @@ python -m kneemeasure validate "<run>/PFI ORS Validation" --manual "<sheet>" --i
 | KRA (deg) | Knee Rotation Angle (MRI) | 45 | -1.3 | -9.9 / +7.4 | 3.4 | 0.83 | **0.82** |
 | sTT-TG (mm), TT in window | sTT-TG (MRI) | 32 | +0.5 | -4.4 / +5.5 | 2.0 | 0.90 | **0.90** |
 | sTT-TG (mm), all | | 43 | -0.3 | -6.1 / +5.6 | 2.3 | 0.85 | 0.86 |
-| PTLTR (mm) | PTLTR | 43 | -2.3 | -12.6 / +7.9 | 4.6 | 0.80 | **0.75** |
+| PTLTR (mm) | PTLTR | 43 | -2.3 | -12.7 / +8.1 | 4.6 | 0.79 | **0.73** |
 | Bone bump (mm) | Bump Height_Bone (MRI) | 45 | -0.7 | -3.9 / +2.4 | 1.4 | 0.65 | 0.60 |
 | CDI | CDI (MRI) | 25 | -0.07 | -0.40 / +0.26 | 0.15 | 0.59 | 0.54 |
 | Cartilage bump (mm) | Bump Height_Cartilage (MRI) | 45 | -0.7 | -5.2 / +3.7 | 1.8 | 0.46 | 0.44 |
@@ -149,3 +149,18 @@ each measurement).
     the ratio drops by a near-constant 0.07 (range 0.05-0.13, r = 0.999 with before). Its
     bias against the manual sheet goes from -0.01 to -0.07; the ICC change is well within
     noise (95% CI 0.30-0.73 before, 0.29-0.69 after, 25 knees).
+- **PTLTR's patella point is the patella's lateral border as a reader marks it**
+  (2026-11-07): the lateral end of the PW_max line (Chen 2024 / Staubli) on the patella's
+  widest slice, the same point the patellar width and tilt use. Before, it was the voxel
+  furthest along the grid's x axis, on any slice. The two are within 0.5 mm on most knees;
+  on a strongly tilted patella the lateral corner sits up to about 3 mm medial of the bone's
+  furthest-lateral bulge, and the corner is what's marked. PTLTR changed by a median
+  +0.13 mm (more than 0.5 mm on 16 of 85 knees in three pulls).
+
+  | PTLTR patella point (ORS, 43 knees) | bias | ICC(2,1) |
+  |---|---|---|
+  | furthest along the grid's x axis (before) | -2.33 mm | 0.75 |
+  | furthest lateral along the condylar line (not used) | -2.20 mm | 0.75 |
+  | **lateral end of the PW_max line (now)** | -2.32 mm | 0.73 |
+
+  All three are within noise; the choice follows the definition, not the agreement.

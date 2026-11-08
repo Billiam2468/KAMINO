@@ -339,8 +339,18 @@ class TestPatellaWidth(unittest.TestCase):
         cart = ~bone & ((xp / a) ** 2 + (yp / (b + 3 * scale)) ** 2 <= 1) & (yp > 0) & (np.abs(xp) <= self.C * scale)
         return bone, cart
 
+    class _Landmarks:
+        """The two landmarks patella_width uses: a PBCL along x, and the patella axis (computed when asked)."""
+        def __init__(self, case, side):
+            self.case, self.knee_side = case, side
+            self.pbcl = {'theta': 0.0, 'z': 2, 'medial_pt': (40.0, 100.0), 'lateral_pt': (80.0, 100.0)}
+
+        @property
+        def patella_axis(self):
+            from kneemeasure.patella_width import find_patella_axis
+            return find_patella_axis(self.case, self.knee_side)
+
     def _case(self, tilt, side):
-        from types import SimpleNamespace
         n, nz = 120, 7
         x, y = np.meshgrid((np.arange(n) - n / 2) * self.SP, (np.arange(n) - n / 2) * self.SP, indexing='ij')
         if side == 'R':
@@ -351,8 +361,7 @@ class TestPatellaWidth(unittest.TestCase):
             labels[:, :, z][cart] = 4
             labels[:, :, z][bone] = 3
         case = {'labels': labels, 'spacing': (self.SP, self.SP, self.SP), 'patella': None}
-        pbcl = {'theta': 0.0, 'z': 2, 'medial_pt': (40.0, 100.0), 'lateral_pt': (80.0, 100.0)}
-        return case, SimpleNamespace(pbcl=pbcl, knee_side=side)
+        return case, self._Landmarks(case, side)
 
     def _expected_effective(self, tilt):
         """The continuous cartilage band's extent along x at this tilt (dense sampling)."""
