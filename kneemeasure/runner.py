@@ -38,7 +38,7 @@ from . import __version__, kra, tt_tg, tibial_pcl, stats, plots, qc, slicer
 from . import review as review_store
 from .cache import ResultCache, cache_key, code_fingerprint, file_sha1
 from .laterality import LateralityTable, resolve
-from .pipeline import MEASURES, MEASURE_BY_KEY, TT_WINDOW_MIN_TIBIA_MM, measure_case, value_columns
+from .pipeline import MEASURES, MEASURE_BY_KEY, TT_WINDOW_MIN_TIBIA_MM, info_columns, measure_case, value_columns
 from .validation import COLUMNS as VALIDATION_COLUMNS
 from .volume import find_segmentations, case_name_from_path, header_laterality
 
@@ -178,6 +178,7 @@ def run_cohort(inputs, out_dir, laterality=None, id_columns=None, side_column=No
         case_sheets, slicer_export = 'none', False
     measures = [MEASURE_BY_KEY[k] for k in measure_keys] if measure_keys is not None else MEASURES
     cols = value_columns(measures)
+    extra_cols = info_columns(measures)
     units = {c: u for m in measures for c, u, _ in m.columns}
 
     table = LateralityTable(laterality, id_columns=id_columns, side_column=side_column) if laterality else None
@@ -322,15 +323,18 @@ def run_cohort(inputs, out_dir, laterality=None, id_columns=None, side_column=No
                                 f"(robust z {f['robust_z']:+.1f})", 'robust_z': f['robust_z']})
 
     if extras:
-        m_cols = (['case', 'knee_side', 'laterality_source'] + info_cols + carry + cols
+        m_cols = (['case', 'knee_side', 'laterality_source'] + info_cols + carry + cols + extra_cols
                   + ['TT_review', 'TPCL_review', 'Sulcus_review', 'tibia_length_mm']
                   + [f'note_{m.key}' for m in measures] + ['segmentation_warnings', 'error', 'file', 'file_sha1'])
     else:
-        m_cols = (['case', 'knee_side', 'laterality_source'] + info_cols + carry + cols
+        m_cols = (['case', 'knee_side', 'laterality_source'] + info_cols + carry + cols + extra_cols
                   + ['TT_review', 'TPCL_review', 'Sulcus_review', 'tibia_length_mm', 'notes', 'file'])
     changes = _archive_and_diff(out_dir, m_rows, cols) if extras else []
     write_csv(os.path.join(out_dir, 'measurements.csv'), m_rows, m_cols)
     measured = [r for r in m_rows if not r['error']]
+    patella_line = _patella_slices(m_rows)
+    if patella_line:
+        log(patella_line)
     named = [dict(r, name=r.get('name') or p[1]) for p, r in zip(plan, results)]
     if qc_grids:
         _write_qc(named, flags, measures, qc_dir, case_sheets, log, jobs)
@@ -352,7 +356,8 @@ def run_cohort(inputs, out_dir, laterality=None, id_columns=None, side_column=No
               ['case', 'category', 'measurement', 'detail', 'robust_z'])
     write_csv(os.path.join(out_dir, 'measurement_definitions.csv'),
               [{'column': c, 'unit': u, 'measurement': m.title, 'definition': d}
-               for m in measures for c, u, d in m.columns], ['column', 'unit', 'measurement', 'definition'])
+               for m in measures for c, u, d in m.columns + m.info_columns],
+              ['column', 'unit', 'measurement', 'definition'])
     desc = stats.describe(measured, cols, units)
     tt_cols = [c for c in cols if c in TT_DEPENDENT]
     in_window = [r for r in measured if not r.get('TT_possibly_out_of_window')]
@@ -494,6 +499,23 @@ def _describe_inputs(inputs):
     return '; '.join(f'{d} ({n} files)' if n else d for d, n in groups.items())
 
 
+def _patella_slices(m_rows):
+    """How many knees have PW_effective and PW_max on different slices, and
+    the spread of the distance between the two, or None without both."""
+    both = [r for r in m_rows if r.get('PW_effective_offset_mm') is not None and r.get('PW_max_offset_mm') is not None]
+    if not both:
+        return None
+    d = np.array([r['PW_max_offset_mm'] - r['PW_effective_offset_mm'] for r in both])
+    line = (f"patellar width: {int((np.abs(d) > 1e-6).sum())} of {len(both)} knees have PW_effective and PW_max "
+            f"on different slices")
+    if (np.abs(d) > 1e-6).any():
+        q1, q3 = np.percentile(d, [25, 75])
+        line += (f"; PW_max slice minus PW_effective slice: median {np.median(d):+.1f} mm "
+                 f"(IQR {q1:+.1f} to {q3:+.1f}, range {d.min():+.1f} to {d.max():+.1f}), "
+                 f"median distance {np.median(np.abs(d)):.1f} mm")
+    return line
+
+
 def _write_summary(path, cohort_name, plan, m_rows, measures, desc, flags, info, changes=(), info_cols=()):
     L = [f"# {cohort_name or 'Knee measurement run'}", '',
          f"- Run: {info['run_started']} ({info['run_seconds'] / 60:.1f} min), kneemeasure {info['kneemeasure_version']}"
@@ -516,6 +538,9 @@ def _write_summary(path, cohort_name, plan, m_rows, measures, desc, flags, info,
                  + ', '.join(f"{v} {k}" for k, v in kinds.items()))
     elif os.path.exists(os.path.join(os.path.dirname(path), 'history')):
         L.append('- No changes since the previous run.')
+    patella_line = _patella_slices(m_rows)
+    if patella_line:
+        L.append(f"- {patella_line[0].upper()}{patella_line[1:]}.")
     L += ['', '## Success per measurement', '',
          '| measurement | measured | failed / skipped |', '|---|---|---|']
     for m in measures:

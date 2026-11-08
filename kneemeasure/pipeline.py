@@ -7,7 +7,7 @@ dropped as soon as the case is done.
 import time
 import traceback
 
-from . import kra, tt_tg, ptltr, ttl, bump_height, cdi, trochlear_morphology, validation
+from . import kra, tt_tg, ptltr, ttl, bump_height, cdi, trochlear_morphology, patella_width, validation
 from .landmarks import Landmarks
 from .volume import load_case, header_laterality, index_to_lps
 
@@ -20,6 +20,12 @@ class Measure:
     def columns(self):
         return self.module.COLUMNS
 
+    @property
+    def info_columns(self):
+        """Written to measurements.csv but not measurements (e.g. the slice
+        used): kept out of the statistics, outlier flags and plots."""
+        return getattr(self.module, 'INFO_COLUMNS', [])
+
 
 # Order here = column order in measurements.csv and QC grid order.
 MEASURES = [
@@ -30,12 +36,17 @@ MEASURES = [
     Measure('trochlear', 'Trochlear morphology (LTI, sulcus angle, facets)', trochlear_morphology),
     Measure('bump_height', 'Trochlear bump height', bump_height, needs_side=False),
     Measure('cdi', 'Caton-Deschamps index (CDI)', cdi, needs_side=False),
+    Measure('patella_width', 'Patellar width and tilt', patella_width),
 ]
 MEASURE_BY_KEY = {m.key: m for m in MEASURES}
 
 
 def value_columns(measures=MEASURES):
     return [c for m in measures for c, _, _ in m.columns]
+
+
+def info_columns(measures=MEASURES):
+    return [c for m in measures for c, _, _ in m.info_columns]
 
 
 def measure_case(path, knee_side=None, measure_keys=None, qc=True, landmarks=True, overrides=None):
@@ -76,7 +87,7 @@ def measure_case(path, knee_side=None, measure_keys=None, qc=True, landmarks=Tru
 
     lm = Landmarks(case, knee_side, overrides)
     for m in measures:
-        for col, _, _ in m.columns:
+        for col, _, _ in m.columns + m.info_columns:
             out['values'][col] = None
         if m.needs_side and knee_side not in ('L', 'R'):
             out['notes'][m.key] = 'skipped: no laterality'

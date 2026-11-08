@@ -5,7 +5,8 @@ page has the column definitions, the landmark rules and how far the values can b
 
 All are computed in 3D from the segmentation. Distances that end at a structure's edge run
 edge to edge, as measured by hand: to the outer edge of its outermost voxel, not the voxel's
-centre (TTL's T and t, PTLTR's patella end, CDI's cartilage length and numerator).
+centre (TTL's T and t, PTLTR's patella end, CDI's cartilage length and numerator, both
+patellar widths).
 
 - **Axial measurements** use the reoriented voxel frame scaled to mm. Relative
   angles and distances are unaffected by any in-plane rotation in the scan header.
@@ -27,6 +28,11 @@ centre (TTL's T and t, PTLTR's patella end, CDI's cartilage length and numerator
 | `medial_/lateral_facet_length_mm`, `facet_asymmetry_ratio` | sulcus to facet-peak distances; asymmetry = medial / lateral |
 | `bone_bump_mm`, `cartilage_bump_mm` | trochlear bump height above the anterior femoral cortex line, on the sagittal slice through the deepest groove |
 | `CDI`, `CDI_numerator_mm`, `patella_cartilage_length_mm` | Caton-Deschamps index on the sagittal slice with the longest patellar cartilage |
+| `PW_effective_mm` | effective patellar width (Hevesi 2023): widest medial-lateral extent of the patellar cartilage, parallel to the PBCL ([below](#patellar-width-and-tilt)) |
+| `PW_max_mm` | maximum patellar width (Chen 2024 / Staubli): bony patella, tip to tip along its own axis |
+| `patellar_tilt_deg` | lateral patellar tilt (Chen 2024): PW_max line vs PBCL; **+ = lateral border posterior** (the lines converge laterally) |
+| `PW_effective_slice`, `PW_max_slice` | the axial slices (z, as the app numbers them) the widths were measured on; information only, not in the statistics |
+| `PW_effective_offset_mm`, `PW_max_offset_mm` | those slices' distance from the PBCL slice, + = proximal; information only |
 
 ## Landmark rules
 
@@ -41,6 +47,54 @@ centre (TTL's T and t, PTLTR's patella end, CDI's cartilage length and numerator
   lateral point.
 
 Each module's docstring gives the full method and the reasons behind each rule.
+
+## Patellar width and tilt
+
+Two published widths, plus tilt, so a small patella can be told apart from a tilted one.
+Like the literature and the manual measurements, all three are 2D, in-plane on axial slices:
+the segmentation's own slices, which are parallel to the PD axial the raters read (median
+0.0 deg apart; 4 of 215 scans over 5 deg).
+
+- **`PW_effective_mm`**, Hevesi et al. (Am J Sports Med 2023), our manual "Effective
+  Patellar Width": the widest distance between the medial and lateral borders of the
+  patellar articular cartilage (label 4), measured parallel to the PBCL (moved, not
+  rotated, to each slice). Every slice with cartilage is tried; the widest wins. A tilted
+  patella reads narrower, since this is a projection onto the femur's axis.
+- **`PW_max_mm`**, Chen et al. (Orthop J Sports Med 2024), after Staubli: the maximum width
+  of the bony patella (label 3) along the patella's own axis, the line through its medial
+  and lateral tips. Every slice is tried; the widest wins.
+  - **Axis:** it starts as the slice's longest chord. Near the long axis a chord's length
+    hardly changes with its angle, so on a voxel grid the longest chord can sit a voxel off
+    the axis and tip it by several degrees; the axis is redrawn through the centres of the
+    two tips (the voxels within 2 mm of each end), roughly where a reader clicks the borders.
+    On a synthetic patella this recovers tilt to within 1 deg.
+- **`patellar_tilt_deg`**, Chen 2024: on the PW_max slice, the angle between the PW_max line
+  and the PBCL. **Positive = lateral tilt:** the patella's lateral border is more posterior
+  than the PBCL would put it, so the lines converge laterally (Chen reports positive lateral
+  tilt in both controls and patients). It is side-aware, like KRA, so left and right knees
+  read alike.
+- **Slices:** the two widths are taken where each is largest, so they can come from
+  different slices. `PW_effective_slice`, `PW_max_slice` and their offsets from the PBCL
+  slice say which; the run log and `summary.md` say how many knees differ and by how much.
+- **Edge to edge:** each width runs from the outer corner of its outermost voxels, as for
+  TTL's tibial width. Along a direction at angle a to the grid that adds |cos a| + |sin a|
+  voxels: 1 along a grid axis, up to 1.41 at 45 deg. On 85 knees it added a median 1.19
+  voxels to PW_effective (90% of knees under 1.33) and 1.23 to PW_max (under 1.39), whose
+  axis can sit at a steeper angle to the grid.
+- **Structures:** each is its largest 3D piece, so stray voxels can't widen it.
+- **Flags in `notes`:**
+  - label 3 or 4 missing;
+  - a second bony piece over 5% of the largest (a bipartite fragment, which isn't measured);
+  - either label in more than one piece on its chosen slice;
+  - the patella reaching the edge of the scan;
+  - PW_effective larger than PW_max. It happens on about 1 knee in 10, by up to about 2 mm,
+    where the segmented cartilage wraps a little past the end of the bone;
+  - a tilt over 45 deg: worth a look in the QC. On the J-Sign knees these were real, severely
+    tilted patellae.
+- **QC grid** ("Patellar width and tilt"): the PW_max slice with the bone (purple) and
+  cartilage (red), the PW_effective slice's cartilage see-through (orange) when it's another
+  slice, PW_max (blue; diamond = lateral end), PW_effective parallel to the PBCL with
+  perpendicular reference lines at its ends (gold), and the PBCL's direction (red).
 
 ## Tuberosity out of the field of view
 

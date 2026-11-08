@@ -324,6 +324,93 @@ class TestScansAndProject(unittest.TestCase):
             self.assertFalse(p.out.startswith(d))                       # the app's results stay out of the data folder
 
 
+class TestPatellaWidth(unittest.TestCase):
+    """A synthetic patella: an ellipse 45 x 20 mm (bone) with a cartilage
+    band on its posterior surface, between its medial and lateral thirds,
+    tilted so the lateral end moves posterior; PBCL along x."""
+    SP, A, B, C = 0.9, 22.5, 10.0, 15.0             # voxel mm; bone semi-axes; cartilage half-width (mm)
+
+    def _inside(self, x, y, tilt, scale=1.0):
+        """Unrotated (patella-frame) coordinates of mm points: bone, cartilage masks."""
+        t = np.radians(tilt)
+        xp, yp = x * np.cos(t) + y * np.sin(t), -x * np.sin(t) + y * np.cos(t)
+        a, b = self.A * scale, self.B * scale
+        bone = (xp / a) ** 2 + (yp / b) ** 2 <= 1
+        cart = ~bone & ((xp / a) ** 2 + (yp / (b + 3 * scale)) ** 2 <= 1) & (yp > 0) & (np.abs(xp) <= self.C * scale)
+        return bone, cart
+
+    def _case(self, tilt, side):
+        from types import SimpleNamespace
+        n, nz = 120, 7
+        x, y = np.meshgrid((np.arange(n) - n / 2) * self.SP, (np.arange(n) - n / 2) * self.SP, indexing='ij')
+        if side == 'R':
+            x = -x                                       # lateral = smaller x for a right knee
+        labels = np.zeros((n, n, nz), dtype=np.uint8)
+        for z, scale in ((1, 0.6), (2, 0.8), (3, 1.0), (4, 0.8), (5, 0.6)):
+            bone, cart = self._inside(x, y, tilt, scale)
+            labels[:, :, z][cart] = 4
+            labels[:, :, z][bone] = 3
+        case = {'labels': labels, 'spacing': (self.SP, self.SP, self.SP), 'patella': None}
+        pbcl = {'theta': 0.0, 'z': 2, 'medial_pt': (40.0, 100.0), 'lateral_pt': (80.0, 100.0)}
+        return case, SimpleNamespace(pbcl=pbcl, knee_side=side)
+
+    def _expected_effective(self, tilt):
+        """The continuous cartilage band's extent along x at this tilt (dense sampling)."""
+        g = np.arange(-30, 30, 0.05)
+        x, y = np.meshgrid(g, g, indexing='ij')
+        _, cart = self._inside(x, y, tilt)
+        return np.ptp(x[cart])
+
+    def test_widths_and_tilt(self):
+        from kneemeasure import patella_width
+        for side in ('L', 'R'):
+            got = {}
+            for tilt in (0, 10, 25):
+                case, lm = self._case(tilt, side)
+                r = patella_width.compute(case, lm)
+                v = r['values']
+                got[tilt] = v
+                with self.subTest(side=side, tilt=tilt):
+                    self.assertAlmostEqual(v['patellar_tilt_deg'], tilt, delta=1.0)
+                    self.assertAlmostEqual(v["PW_max_mm"], 2 * self.A, delta=1.01 * self.SP)  # within a voxel of 45 mm
+                    self.assertAlmostEqual(v['PW_effective_mm'], self._expected_effective(tilt), delta=1.5 * self.SP)
+                    self.assertEqual(v['PW_max_slice'], 3)
+                    self.assertEqual(v['PW_effective_slice'], 3)
+                    self.assertAlmostEqual(v['PW_max_offset_mm'], self.SP)          # one slice above the PBCL's
+                    self.assertIsNone(r['note'])
+            with self.subTest(side=side):
+                pw_max = [got[t]['PW_max_mm'] for t in (0, 10, 25)]
+                self.assertLess(max(pw_max) - min(pw_max), 1.5 * self.SP)            # PW_max doesn't change with tilt
+                self.assertGreater(got[0]['PW_effective_mm'], got[10]['PW_effective_mm'])
+                self.assertGreater(got[10]['PW_effective_mm'], got[25]['PW_effective_mm'])
+
+    def test_edge_to_edge(self):
+        from kneemeasure.patella_width import effective_width, max_chord
+        m = np.zeros((20, 20), dtype=bool)
+        m[5:15, 10] = True                               # a bar 10 voxels long: centre to centre 9
+        self.assertAlmostEqual(effective_width(m, (1.0, 1.0), np.array([1.0, 0.0]), 'L')[0], 10.0)
+        self.assertAlmostEqual(max_chord(m, (1.0, 1.0), 'L')[0], 10.0)             # along the bar, not its diagonal
+        u = np.array([np.cos(np.radians(30)), np.sin(np.radians(30))])
+        self.assertAlmostEqual(effective_width(m, (1.0, 1.0), u, 'L')[0], 9 * u[0] + u[0] + u[1])   # + |cos| + |sin| voxels
+
+    def test_flags(self):
+        from kneemeasure import patella_width
+        case, lm = self._case(0, 'L')
+        case['labels'][95:110, 95:110, 2:5] = 3                                      # a separate bony piece, ~25%
+        note = patella_width.compute(case, lm)['note']
+        self.assertIn('bipartite', note)
+        self.assertIn('more than one piece on the PW_max slice', note)
+        case, lm = self._case(0, 'L')
+        case['labels'][0, 60, 3] = 3                                                 # touches the scan's edge
+        self.assertIn('edge of the scan', patella_width.compute(case, lm)['note'])
+        case, lm = self._case(0, 'L')
+        case['labels'][case['labels'] == 4] = 0
+        r = patella_width.compute(case, lm)
+        self.assertIn('no patellar cartilage', r['note'])
+        self.assertIsNone(r['values']['PW_effective_mm'])
+        self.assertIsNotNone(r['values']['PW_max_mm'])
+
+
 @unittest.skipUnless(os.path.isdir(DATA), f'segmentation data not found at {DATA}')
 class TestRegression(unittest.TestCase):
     def test_tpcl_at_slice_matches_method(self):

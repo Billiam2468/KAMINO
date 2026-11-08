@@ -35,6 +35,9 @@ Each measurement is a column in `measurements.csv`, one row per scan.
 | **Facet lengths** | `medial_/lateral_facet_length_mm` | Groove to each facet peak; plus `facet_asymmetry_ratio` |
 | **Bump height** | `bone_bump_mm`, `cartilage_bump_mm` | Trochlear bump above the anterior femoral cortex |
 | **CDI** | `CDI` | Caton-Deschamps index |
+| **Effective patellar width** (Hevesi) | `PW_effective_mm` | Widest extent of the patellar cartilage, along the femoral posterior condylar line |
+| **Maximum patellar width** (Chen / Staubli) | `PW_max_mm` | Bony patella, tip to tip along its own axis |
+| **Patellar tilt** (Chen) | `patellar_tilt_deg` | Maximum-width line vs the femoral posterior condylar line; + = lateral tilt |
 
 The file also has, per scan:
 
