@@ -7,7 +7,7 @@
 - Manual reference: `MPFL+ Master(ISO COMBINED NEW MASTER SHEET).csv`, matched by MRN and,
   for bilateral patients, by knee side. All 45 knees matched.
 - Run date: 2026-10-29 (re-run for the single-slice TPCL and the bitangent PBCL; first run
-  2026-10-21).
+  2026-10-21). PTLTR, TTL and CDI re-run 2026-11-07 for edge-to-edge distances (below).
 
 **Reproduce**
 
@@ -28,14 +28,14 @@ python -m kneemeasure validate "<run>/PFI ORS Validation" --manual "<sheet>" --i
 | KRA (deg) | Knee Rotation Angle (MRI) | 45 | -1.3 | -9.9 / +7.4 | 3.4 | 0.83 | **0.82** |
 | sTT-TG (mm), TT in window | sTT-TG (MRI) | 32 | +0.5 | -4.4 / +5.5 | 2.0 | 0.90 | **0.90** |
 | sTT-TG (mm), all | | 43 | -0.3 | -6.1 / +5.6 | 2.3 | 0.85 | 0.86 |
-| PTLTR (mm) | PTLTR | 43 | -2.8 | -13.0 / +7.5 | 4.7 | 0.80 | **0.73** |
+| PTLTR (mm) | PTLTR | 43 | -2.3 | -12.6 / +7.9 | 4.6 | 0.80 | **0.75** |
 | Bone bump (mm) | Bump Height_Bone (MRI) | 45 | -0.7 | -3.9 / +2.4 | 1.4 | 0.65 | 0.60 |
-| CDI | CDI (MRI) | 25 | -0.01 | -0.34 / +0.33 | 0.14 | 0.58 | 0.58 |
+| CDI | CDI (MRI) | 25 | -0.07 | -0.40 / +0.26 | 0.15 | 0.59 | 0.54 |
 | Cartilage bump (mm) | Bump Height_Cartilage (MRI) | 45 | -0.7 | -5.2 / +3.7 | 1.8 | 0.46 | 0.44 |
 | TT-TG (mm), TT in window | TT-TG (MRI) | 32 | -0.3 | -11.9 / +11.3 | 4.0 | 0.41 | 0.41 |
 | TT-TG (mm), all | | 43 | -3.2 | -20.8 / +14.3 | 6.2 | -0.05 | -0.04 |
-| TTL t (mm), TT in window | Tubercle Lateralization (MRI) | 33 | +1.4 | -9.7 / +12.4 | 4.0 | 0.40 | 0.39 |
-| TTL ratio, TT in window | Tubercle Lateralization % (MRI) | 33 | +0.04 | -0.11 / +0.18 | 0.06 | 0.06 | 0.05 |
+| TTL t (mm), TT in window | Tubercle Lateralization (MRI) | 33 | +1.8 | -9.2 / +12.9 | 4.1 | 0.40 | 0.38 |
+| TTL ratio, TT in window | Tubercle Lateralization % (MRI) | 33 | +0.03 | -0.11 / +0.18 | 0.06 | 0.06 | 0.05 |
 | LTI (deg) | Lateral Trochlear Inclination (Cade) | 43 | +8.2 | -1.3 / +17.7 | 8.6 | 0.58 | 0.26 |
 | Sulcus angle (deg) | Sulcus Angle (MRI) BONE | 43 | +5.2 | -20.9 / +31.3 | 11.7 | 0.39 | 0.17 |
 
@@ -130,4 +130,22 @@ each measurement).
   - **Kept for fidelity, not agreement:** the change follows the published method; agreement
     with the manual sheet is within noise of before. The manual values (mean 16.8 mm) are
     larger than tendon-based values would be, which suggests the raters measured to the
-    patella's edge; the remaining bias (-2.8 mm) may come from how they measured.
+    patella's edge; the remaining bias (-2.8 mm, -2.3 mm since edge to edge, below) may
+    come from how they measured.
+- **Edge-to-edge distances** (2026-11-07): distances that end at a structure's outermost
+  voxel now end at that voxel's outer edge instead of its centre, as a manual measurer
+  would: TTL's T and t, PTLTR's patella end, and both ends of CDI's cartilage length and
+  numerator. Every other measurement ends on surfaces facing the same way, so it's
+  unchanged.
+
+  | measurement | change (median, ORS) | ICC(2,1) before / after |
+  |---|---|---|
+  | PTLTR | +0.45 mm (bias -2.8 to -2.3 mm) | 0.73 / 0.75 |
+  | TTL t, TT in window | +0.5 mm (bias +1.4 to +1.8 mm) | 0.39 / 0.38 |
+  | TTL ratio, TT in window | under 0.005 | 0.05 / 0.05 |
+  | CDI | -0.06 (numerator -1.0 mm, cartilage length +0.9 mm) | 0.58 / 0.54 |
+
+  - **CDI:** the gap between the tibia and the cartilage shrinks and the cartilage grows, so
+    the ratio drops by a near-constant 0.07 (range 0.05-0.13, r = 0.999 with before). Its
+    bias against the manual sheet goes from -0.01 to -0.07; the ICC change is well within
+    noise (95% CI 0.30-0.73 before, 0.29-0.69 after, 25 knees).

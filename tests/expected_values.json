@@ -6,10 +6,10 @@
    "KRA_deg": -5.8844,
    "TT_TG_mm": 4.1086,
    "sTT_TG_mm": -10.0687,
-   "PTLTR_mm": 9.6984,
-   "TTL": 0.6702,
-   "TTL_t_mm": 48.6207,
-   "TTL_T_mm": 72.5492,
+   "PTLTR_mm": 10.1481,
+   "TTL": 0.6678,
+   "TTL_t_mm": 49.1298,
+   "TTL_T_mm": 73.5674,
    "LTI_deg": 14.857,
    "sulcus_angle_deg": 157.1867,
    "medial_facet_depth_mm": 1.252,
@@ -20,9 +20,9 @@
    "facet_asymmetry_ratio": 0.7389,
    "bone_bump_mm": 1.191,
    "cartilage_bump_mm": 2.9343,
-   "CDI": 1.0411,
-   "CDI_numerator_mm": 33.0068,
-   "patella_cartilage_length_mm": 31.705
+   "CDI": 0.9816,
+   "CDI_numerator_mm": 32.0007,
+   "patella_cartilage_length_mm": 32.5994
   }
  },
  "DWAU5": {
@@ -32,10 +32,10 @@
    "KRA_deg": -10.3758,
    "TT_TG_mm": 13.3838,
    "sTT_TG_mm": 3.2269,
-   "PTLTR_mm": 1.393,
-   "TTL": 0.7701,
-   "TTL_t_mm": 52.439,
-   "TTL_T_mm": 68.0944,
+   "PTLTR_mm": 0.9434,
+   "TTL": 0.7661,
+   "TTL_t_mm": 52.9482,
+   "TTL_T_mm": 69.1126,
    "LTI_deg": 24.0472,
    "sulcus_angle_deg": 151.0736,
    "medial_facet_depth_mm": 0.6172,
@@ -46,9 +46,9 @@
    "facet_asymmetry_ratio": 0.499,
    "bone_bump_mm": 2.3328,
    "cartilage_bump_mm": 4.5458,
-   "CDI": 1.2359,
-   "CDI_numerator_mm": 36.724,
-   "patella_cartilage_length_mm": 29.7136
+   "CDI": 1.1672,
+   "CDI_numerator_mm": 35.7318,
+   "patella_cartilage_length_mm": 30.6132
   }
  },
  "RJ259": {
@@ -58,10 +58,10 @@
    "KRA_deg": -6.009,
    "TT_TG_mm": 18.9,
    "sTT_TG_mm": -14.4,
-   "PTLTR_mm": 10.2675,
-   "TTL": 0.3434,
-   "TTL_t_mm": 27.2285,
-   "TTL_T_mm": 79.283,
+   "PTLTR_mm": 10.7174,
+   "TTL": 0.3454,
+   "TTL_t_mm": 27.7231,
+   "TTL_T_mm": 80.2723,
    "LTI_deg": 14.0362,
    "sulcus_angle_deg": 161.5651,
    "medial_facet_depth_mm": 0.9,
@@ -72,9 +72,9 @@
    "facet_asymmetry_ratio": 0.7906,
    "bone_bump_mm": 2.1567,
    "cartilage_bump_mm": 4.2621,
-   "CDI": 1.0852,
-   "CDI_numerator_mm": 39.1164,
-   "patella_cartilage_length_mm": 36.045
+   "CDI": 1.0316,
+   "CDI_numerator_mm": 38.1121,
+   "patella_cartilage_length_mm": 36.9439
   }
  },
  "U1QN9": {
@@ -84,10 +84,10 @@
    "KRA_deg": 5.7061,
    "TT_TG_mm": 18.3787,
    "sTT_TG_mm": -21.7224,
-   "PTLTR_mm": 8.5275,
-   "TTL": 0.807,
-   "TTL_t_mm": 55.7568,
-   "TTL_T_mm": 69.091,
+   "PTLTR_mm": 8.8273,
+   "TTL": 0.8042,
+   "TTL_t_mm": 56.0746,
+   "TTL_T_mm": 69.7266,
    "LTI_deg": 5.9275,
    "sulcus_angle_deg": 161.2502,
    "medial_facet_depth_mm": 2.1676,
@@ -98,9 +98,9 @@
    "facet_asymmetry_ratio": 0.5755,
    "bone_bump_mm": 2.5137,
    "cartilage_bump_mm": 5.5213,
-   "CDI": 1.2989,
-   "CDI_numerator_mm": 42.4349,
-   "patella_cartilage_length_mm": 32.6711
+   "CDI": 1.2556,
+   "CDI_numerator_mm": 41.769,
+   "patella_cartilage_length_mm": 33.2662
   }
  },
  "Y3082": {
@@ -110,10 +110,10 @@
    "KRA_deg": -2.7634,
    "TT_TG_mm": 14.1149,
    "sTT_TG_mm": -4.2859,
-   "PTLTR_mm": 7.5231,
-   "TTL": 0.7407,
-   "TTL_t_mm": 52.1442,
-   "TTL_T_mm": 70.4021,
+   "PTLTR_mm": 7.7224,
+   "TTL": 0.7391,
+   "TTL_t_mm": 52.3675,
+   "TTL_T_mm": 70.8486,
    "LTI_deg": 14.5631,
    "sulcus_angle_deg": 158.5858,
    "medial_facet_depth_mm": 1.0985,
@@ -124,9 +124,9 @@
    "facet_asymmetry_ratio": 0.6222,
    "bone_bump_mm": 1.6364,
    "cartilage_bump_mm": 4.8251,
-   "CDI": 1.1228,
-   "CDI_numerator_mm": 32.9369,
-   "patella_cartilage_length_mm": 29.3339
+   "CDI": 1.0931,
+   "CDI_numerator_mm": 32.5011,
+   "patella_cartilage_length_mm": 29.7321
   }
  }
 }

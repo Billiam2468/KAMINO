@@ -10,6 +10,10 @@ Am 2015;97(17):1441-8, and 2018;100(9):e58, Fig. 2):
 
     TTL = t / T
 
+Both run edge to edge, as measured by hand: T from the outer edge of the
+tibia's most medial voxel to the outer edge of its most lateral one (each
+half a voxel past its centre along the TPCL), t from that medial edge.
+
 Medial vs lateral for T's two edges is resolved by the TPCL's own
 (knee-side-aware) medial_pt/lateral_pt ordering along the same axis.
 
@@ -57,15 +61,19 @@ def compute(case, lm):
     medial_idx = idx_min if medial_is_min else idx_max
     lateral_idx = idx_max if medial_is_min else idx_min
 
-    medial_edge_proj = float(projections[medial_idx])
-    width_mm = abs(float(projections[lateral_idx]) - medial_edge_proj)
+    # the extreme voxels' outer corners along u, not their centres
+    out = 0.5 * np.sign(u) * (-1.0 if medial_is_min else 1.0)
+    medial_edge = np.array([xs[medial_idx], ys[medial_idx]], dtype=float) + out
+    lateral_edge = np.array([xs[lateral_idx], ys[lateral_idx]], dtype=float) - out
+    medial_edge_proj = float(np.dot(medial_edge * spacing_xy, u))
+    width_mm = abs(float(np.dot(lateral_edge * spacing_xy, u)) - medial_edge_proj)
     tubercle_proj = float(np.dot(np.array(tubercle['point'][:2], dtype=float) * spacing_xy, u))
     t_mm = abs(tubercle_proj - medial_edge_proj)
     ttl = t_mm / width_mm if width_mm > 0 else None
 
     return {'values': {'TTL': ttl, 'TTL_t_mm': t_mm, 'TTL_T_mm': width_mm}, 'note': None,
-            'details': {'medial_edge_point': (int(xs[medial_idx]), int(ys[medial_idx]), tpcl['z']),
-                        'lateral_edge_point': (int(xs[lateral_idx]), int(ys[lateral_idx]), tpcl['z'])}}
+            'details': {'medial_edge_point': (float(medial_edge[0]), float(medial_edge[1]), tpcl['z']),
+                        'lateral_edge_point': (float(lateral_edge[0]), float(lateral_edge[1]), tpcl['z'])}}
 
 
 def qc_payload(case, lm, result, margin_mm=15.0):

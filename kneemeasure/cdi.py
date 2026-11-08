@@ -16,6 +16,10 @@ sagittal slice:
   vertex where the near-vertical anterior cortex meets the near-horizontal
   plateau.
 
+Every distance runs edge to edge, as measured by hand: the cartilage poles
+are the top edge of the most superior pixel and the bottom edge of the most
+inferior one, the corner is that pixel's anterosuperior corner.
+
 Reads the unfiltered label map (no largest-component filter), matching the
 original implementation.
 """
@@ -42,8 +46,8 @@ def find_best_sagittal_slice(labels, sy, sz):
         z_lo, z_hi = zs.min(), zs.max()
         y_inf = float(np.median(ys[zs == z_lo]))
         y_sup = float(np.median(ys[zs == z_hi]))
-        lengths_mm[x] = float(np.hypot((y_sup - y_inf) * sy, (z_hi - z_lo) * sz))
-        points[x] = ((y_inf, float(z_lo)), (y_sup, float(z_hi)))
+        lengths_mm[x] = float(np.hypot((y_sup - y_inf) * sy, (z_hi - z_lo + 1) * sz))
+        points[x] = ((y_inf, z_lo - 0.5), (y_sup, z_hi + 0.5))
     best_x = int(np.argmax(lengths_mm))
     if points[best_x] is None:
         return None
@@ -56,7 +60,7 @@ def find_tibial_anterosuperior_corner(tibia_slice_mask, sy, sz):
     if len(ys) == 0:
         return None
     idx = int(np.argmax(zs * sz - ys * sy))
-    return (int(ys[idx]), int(zs[idx]))
+    return (ys[idx] - 0.5, zs[idx] + 0.5)          # the pixel's anterior (smaller y), superior corner
 
 
 def _dist_mm(p1, p2, sy, sz):

@@ -3,7 +3,9 @@
 How each value in `measurements.csv` is calculated is in `Measurement methods.xlsx`; this
 page has the column definitions, the landmark rules and how far the values can be trusted.
 
-All are computed in 3D from the segmentation.
+All are computed in 3D from the segmentation. Distances that end at a structure's edge run
+edge to edge, as measured by hand: to the outer edge of its outermost voxel, not the voxel's
+centre (TTL's T and t, PTLTR's patella end, CDI's cartilage length and numerator).
 
 - **Axial measurements** use the reoriented voxel frame scaled to mm. Relative
   angles and distances are unaffected by any in-plane rotation in the scan header.

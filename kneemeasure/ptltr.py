@@ -26,6 +26,9 @@ Landmarks, following the paper's method:
 
     PTLTR = |(P_patella - P_ridge) . u_along_PCL|
 
+P_patella is that voxel's lateral edge (half a voxel lateral of its
+centre), so the distance runs from the patella's edge, as measured by hand.
+
 On the ORS cohort this agrees with the manual PTLTR about as well as the
 earlier ridge (the most anterior lateral point over the whole trochlea,
 against the usual PBCL): ICC 0.73 vs 0.75 -- see VALIDATION.md.
@@ -133,11 +136,13 @@ def compute(case, lm):
     if patella['point'] is None:
         return {'values': empty, 'note': patella['note']}
 
+    px, py, pz = patella['point']
+    edge = (px + (0.5 if lm.knee_side == 'L' else -0.5), py, pz)     # lateral = larger x for a left knee
     spacing_xy = np.array(case['spacing'][:2])
-    v = np.array(patella['point'][:2]) * spacing_xy - np.array(apex['point'][:2]) * spacing_xy
+    v = np.array(edge[:2]) * spacing_xy - np.array(apex['point'][:2]) * spacing_xy
     u_along, _ = pcl_axes(pcl['theta'])
     return {'values': {'PTLTR_mm': abs(float(np.dot(v, u_along)))}, 'note': None,
-            'details': {'ridge_point': apex['point'], 'patella_point': patella['point'], 'tendon_z': sl['tendon_z'],
+            'details': {'ridge_point': apex['point'], 'patella_point': edge, 'tendon_z': sl['tendon_z'],
                         'pcl': {k: pcl[k] for k in ('theta', 'z', 'medial_pt', 'lateral_pt')}}}
 
 
