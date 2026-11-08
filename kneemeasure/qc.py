@@ -27,6 +27,7 @@ _PANELS = {
     'bump_height': (4.0, 4.2, 8),
     'cdi': (4.0, 4.5, 7),
     'patella_width': (4.0, 4.2, 7),
+    'femoral_width': (4.0, 4.2, 8),
 }
 GRID_TITLES = {'overview': 'Segmentation overview (lateral projection)'}
 GRID_TITLES.update({m.key: m.title for m in MEASURES})

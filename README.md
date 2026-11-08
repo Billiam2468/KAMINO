@@ -38,6 +38,7 @@ Each measurement is a column in `measurements.csv`, one row per scan.
 | **Effective patellar width** (Hevesi) | `PW_effective_mm` | Widest extent of the patellar cartilage, along the femoral posterior condylar line |
 | **Maximum patellar width** (Chen / Staubli) | `PW_max_mm` | Bony patella, tip to tip along its own axis |
 | **Patellar tilt** (Chen) | `patellar_tilt_deg` | Maximum-width line vs the femoral posterior condylar line; + = lateral tilt |
+| **Femoral width** (Chen) | `FW_mm` | Femur's width along the femoral posterior condylar line, on that line's slice |
 
 The file also has, per scan:
 

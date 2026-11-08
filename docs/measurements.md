@@ -6,7 +6,7 @@ page has the column definitions, the landmark rules and how far the values can b
 All are computed in 3D from the segmentation. Distances that end at a structure's edge run
 edge to edge, as measured by hand: to the outer edge of its outermost voxel, not the voxel's
 centre (TTL's T and t, PTLTR's patella end, CDI's cartilage length and numerator, both
-patellar widths).
+patellar widths, femoral width).
 
 - **Axial measurements** use the reoriented voxel frame scaled to mm. Relative
   angles and distances are unaffected by any in-plane rotation in the scan header.
@@ -31,6 +31,7 @@ patellar widths).
 | `PW_effective_mm` | effective patellar width (Hevesi 2023): widest medial-lateral extent of the patellar cartilage, parallel to the PBCL ([below](#patellar-width-and-tilt)) |
 | `PW_max_mm` | maximum patellar width (Chen 2024 / Staubli): bony patella, tip to tip along its own axis |
 | `patellar_tilt_deg` | lateral patellar tilt (Chen 2024): PW_max line vs PBCL; **+ = lateral border posterior** (the lines converge laterally) |
+| `FW_mm` | femoral width (Chen 2024): the femur bone's extent along the PBCL, between the perpendiculars through its most medial and lateral points, on the PBCL slice ([below](#femoral-width)) |
 | `PW_effective_slice`, `PW_max_slice` | the axial slices (z, as the app numbers them) the widths were measured on; information only, not in the statistics |
 | `PW_effective_offset_mm`, `PW_max_offset_mm` | those slices' distance from the PBCL slice, + = proximal; information only |
 
@@ -47,6 +48,30 @@ patellar widths).
   lateral point.
 
 Each module's docstring gives the full method and the reasons behind each rule.
+
+## Femoral width
+
+`FW_mm`, after Chen et al. (Orthop J Sports Med 2024): the distance between the lines
+perpendicular to the PBCL through the most prominent medial and lateral points of the femoral
+condyles, measured on the bone (label 1) only, edge to edge, in-plane on one axial slice.
+
+- **Slice:** the PBCL's own slice. That's the slice, among those whose posterior outline has
+  two condylar lobes (each standing out at least 3 mm) and a notch at least 2 mm deep, whose
+  bitangent lies most posterior. This mirrors tibial width, which uses the tibial line's
+  slice.
+- **Why not Chen's exact slice:** Chen takes the most proximal slice showing the posterior
+  condyles with the Roman arch, which is the top of the intercondylar notch, about 20 mm
+  above the PBCL slice. The femur narrows fast there, so the width depends on where the arch
+  is said to end: a 4 mm vs 8 mm notch-depth rule moved it a median 4 mm, and more than
+  17 mm on 1 knee in 10. The PBCL slice is inside the same arch zone, at its distal end, with
+  both condyles and a well-formed notch (20-30 mm deep).
+- **Effect of the slice:** on 85 knees the PBCL slice read a median 2.5 mm narrower than the
+  widest slice (77.4 vs 79.9 mm), which is about 10 mm higher, at the epicondyles.
+- **Flag in `notes`:** the femur reaching the edge of the scan on that slice (the width may be
+  cut short).
+- **QC grid** ("Femoral width"): the femur on the PBCL slice, the PBCL through its condyle
+  points (red), and the width drawn on the PBCL (gold), between the dashed perpendiculars
+  through the femur's medial and lateral edges: the width is their projection onto the PBCL.
 
 ## Patellar width and tilt
 

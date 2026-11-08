@@ -420,6 +420,30 @@ class TestPatellaWidth(unittest.TestCase):
         self.assertIsNotNone(r['values']['PW_max_mm'])
 
 
+class TestFemoralWidth(unittest.TestCase):
+    def _run(self, theta, side='L', at_edge=False):
+        from types import SimpleNamespace
+        from kneemeasure import femoral_width
+        bone = np.zeros((100, 80, 3), dtype=bool)
+        bone[15:85, 20:60, 1] = True                    # 70 x 40 voxels of 0.9 mm on the PBCL slice
+        if at_edge:
+            bone[0:85, 20:60, 1] = True
+        case = {'bone': bone, 'spacing': (0.9, 0.9, 0.9)}
+        lm = SimpleNamespace(knee_side=side, pbcl={'theta': theta, 'z': 1, 'medial_pt': (20, 59), 'lateral_pt': (80, 59)})
+        return femoral_width.compute(case, lm)
+
+    def test_width_edge_to_edge(self):
+        self.assertAlmostEqual(self._run(0.0)['values']['FW_mm'], 70 * 0.9)
+        t = np.radians(20.0)                                # a box's extent along a line at 20 deg to it
+        self.assertAlmostEqual(self._run(20.0, 'R')['values']['FW_mm'], (70 * np.cos(t) + 40 * np.sin(t)) * 0.9)
+        r = self._run(0.0, 'L')['details']
+        self.assertGreater(r['lateral_edge'][0], r['medial_edge'][0])     # lateral = larger x for a left knee
+
+    def test_flags(self):
+        self.assertIsNone(self._run(0.0)['note'])
+        self.assertIn('edge of the scan', self._run(0.0, at_edge=True)['note'])
+
+
 @unittest.skipUnless(os.path.isdir(DATA), f'segmentation data not found at {DATA}')
 class TestRegression(unittest.TestCase):
     def test_tpcl_at_slice_matches_method(self):

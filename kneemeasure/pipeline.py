@@ -7,7 +7,7 @@ dropped as soon as the case is done.
 import time
 import traceback
 
-from . import kra, tt_tg, ptltr, ttl, bump_height, cdi, trochlear_morphology, patella_width, validation
+from . import kra, tt_tg, ptltr, ttl, bump_height, cdi, trochlear_morphology, patella_width, femoral_width, validation
 from .landmarks import Landmarks
 from .volume import load_case, header_laterality, index_to_lps
 
@@ -37,6 +37,7 @@ MEASURES = [
     Measure('bump_height', 'Trochlear bump height', bump_height, needs_side=False),
     Measure('cdi', 'Caton-Deschamps index (CDI)', cdi, needs_side=False),
     Measure('patella_width', 'Patellar width and tilt', patella_width),
+    Measure('femoral_width', 'Femoral width', femoral_width),
 ]
 MEASURE_BY_KEY = {m.key: m for m in MEASURES}
 
