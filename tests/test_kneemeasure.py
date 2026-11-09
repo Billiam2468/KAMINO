@@ -383,9 +383,8 @@ class TestPatellaWidth(unittest.TestCase):
                     self.assertAlmostEqual(v['patellar_tilt_deg'], tilt, delta=1.0)
                     self.assertAlmostEqual(v["PW_max_mm"], 2 * self.A, delta=1.01 * self.SP)  # within a voxel of 45 mm
                     self.assertAlmostEqual(v['PW_effective_mm'], self._expected_effective(tilt), delta=1.5 * self.SP)
-                    self.assertEqual(v['PW_max_slice'], 3)
-                    self.assertEqual(v['PW_effective_slice'], 3)
-                    self.assertAlmostEqual(v['PW_max_offset_mm'], self.SP)          # one slice above the PBCL's
+                    self.assertEqual(r['details']['max']['z'], 3)                  # the widest slice, for the QC
+                    self.assertEqual(r['details']['effective']['z'], 3)
                     self.assertIsNone(r['note'])
             with self.subTest(side=side):
                 pw_max = [got[t]['PW_max_mm'] for t in (0, 10, 25)]

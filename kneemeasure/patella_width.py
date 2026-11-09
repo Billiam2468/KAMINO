@@ -29,9 +29,8 @@ direction at angle a to the grid that adds |cos a| + |sin a| voxels (1 to
 
 Each structure is its largest 3D component (stray voxels can't widen it);
 the notes say when a second bony piece is big enough to be a bipartite
-fragment, when a label splits on its chosen slice, when the patella reaches
-the edge of the scan, and when PW_effective > PW_max (it shouldn't: the
-cartilage is narrower than the bone and a projection only shortens).
+fragment, when a label splits on its chosen slice, and when the patella
+reaches the edge of the scan.
 
 Medial/lateral: x increases toward patient LEFT, so lateral = larger x for
 a LEFT knee, smaller x for a RIGHT knee.
@@ -52,13 +51,6 @@ COLUMNS = [
                         'own axis'),
     ('patellar_tilt_deg', 'deg', 'lateral patellar tilt (Chen 2024): PW_max line vs PBCL '
                                  '(+ = lateral border posterior)'),
-]
-# written to measurements.csv, but not measurements: kept out of the statistics, outlier flags and plots
-INFO_COLUMNS = [
-    ('PW_effective_slice', 'slice', 'axial slice (z) PW_effective was measured on'),
-    ('PW_max_slice', 'slice', 'axial slice (z) PW_max and the tilt were measured on'),
-    ('PW_effective_offset_mm', 'mm', "PW_effective slice's distance from the PBCL slice (+ = proximal)"),
-    ('PW_max_offset_mm', 'mm', "PW_max slice's distance from the PBCL slice (+ = proximal)"),
 ]
 
 BIPARTITE_FRACTION = 0.05     # a second bony piece this big (of the largest) may be a bipartite fragment
@@ -158,9 +150,8 @@ def _n_pieces(mask2d):
 
 
 def compute(case, lm):
-    empty = {c: None for c, _, _ in COLUMNS + INFO_COLUMNS}
-    labels, (sx, sy, sz) = case['labels'], case['spacing']
-    sxy = (sx, sy)
+    empty = {c: None for c, _, _ in COLUMNS}
+    labels, sxy = case['labels'], case['spacing'][:2]
     bone_raw, cart_raw = labels == PAT_B, labels == PAT_C
     notes = []
     if not bone_raw.any():
@@ -197,7 +188,7 @@ def compute(case, lm):
             if best is None or w > best[0]:
                 best = (w, med, lat, int(z))
         w, med, lat, z = best
-        values.update(PW_effective_mm=w, PW_effective_slice=z, PW_effective_offset_mm=(z - pbcl['z']) * sz)
+        values.update(PW_effective_mm=w)
         details['effective'] = {'z': z, 'medial_edge': tuple(med), 'lateral_edge': tuple(lat)}
         if _n_pieces(cart_raw[:, :, z]) > 1:
             notes.append(f'patellar cartilage is in more than one piece on the PW_effective slice (z {z})')
@@ -206,21 +197,16 @@ def compute(case, lm):
     axis = lm.patella_axis if bone_raw.any() else None
     if axis is not None:
         length, med, lat, z = axis['length_mm'], axis['medial_end'], axis['lateral_end'], axis['z']
-        values.update(PW_max_mm=length, PW_max_slice=z)
+        values.update(PW_max_mm=length)
         details['max'] = {'z': z, 'medial_end': tuple(med), 'lateral_end': tuple(lat)}
         if _n_pieces(bone_raw[:, :, z]) > 1:
             notes.append(f'patella bone is in more than one piece on the PW_max slice (z {z})')
         if pbcl['theta'] is not None:
             tilt = tilt_deg(med, lat, sxy, pbcl['theta'], lm.knee_side)
-            values.update(patellar_tilt_deg=tilt, PW_max_offset_mm=(z - pbcl['z']) * sz)
+            values.update(patellar_tilt_deg=tilt)
             if abs(tilt) > MAX_CHORD_ANGLE_DEG:
                 notes.append(f'patellar tilt {tilt:+.0f} deg: check in the QC that the PW_max line runs from the '
                              f'medial to the lateral border')
-
-    if values['PW_effective_mm'] is not None and values['PW_max_mm'] is not None \
-            and values['PW_effective_mm'] > values['PW_max_mm']:
-        notes.append(f"PW_effective ({values['PW_effective_mm']:.1f} mm) is larger than PW_max "
-                     f"({values['PW_max_mm']:.1f} mm)")
     return {'values': values, 'note': '; '.join(notes) or None, 'details': details}
 
 
@@ -280,8 +266,9 @@ def render_panel(ax, p, fontsize=8):
 
 def panel_title(p):
     f = lambda v, fmt: 'n/a' if v is None else format(v, fmt)
-    return (f"PW_eff={f(p['PW_effective_mm'], '.1f')} (z {f(p['PW_effective_slice'], 'd')}), "
-            f"PW_max={f(p['PW_max_mm'], '.1f')} (z {p['PW_max_slice']}), tilt={f(p['patellar_tilt_deg'], '+.1f')}")
+    ze = p['effective']['z'] if p.get('effective') else None
+    return (f"PW_eff={f(p['PW_effective_mm'], '.1f')} (z {f(ze, 'd')}), "
+            f"PW_max={f(p['PW_max_mm'], '.1f')} (z {p['max']['z']}), tilt={f(p['patellar_tilt_deg'], '+.1f')}")
 
 
 def landmark_points(case, lm, result):

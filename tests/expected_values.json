@@ -36,11 +36,7 @@
    "PW_effective_mm": 39.2522,
    "PW_max_mm": 42.6629,
    "patellar_tilt_deg": 18.6099,
-   "FW_mm": 73.3377,
-   "PW_effective_slice": 89.0,
-   "PW_max_slice": 89.0,
-   "PW_effective_offset_mm": 18.9,
-   "PW_max_offset_mm": 18.9
+   "FW_mm": 73.3377
   }
  },
  "DWAU5": {
@@ -80,11 +76,7 @@
    "PW_effective_mm": 39.887,
    "PW_max_mm": 39.9043,
    "patellar_tilt_deg": 9.4786,
-   "FW_mm": 70.2871,
-   "PW_effective_slice": 93.0,
-   "PW_max_slice": 95.0,
-   "PW_effective_offset_mm": 22.5,
-   "PW_max_offset_mm": 24.3
+   "FW_mm": 70.2871
   }
  },
  "RJ259": {
@@ -124,11 +116,7 @@
    "PW_effective_mm": 48.6,
    "PW_max_mm": 51.328,
    "patellar_tilt_deg": 8.9938,
-   "FW_mm": 82.8,
-   "PW_effective_slice": 67.0,
-   "PW_max_slice": 67.0,
-   "PW_effective_offset_mm": 20.7,
-   "PW_max_offset_mm": 20.7
+   "FW_mm": 82.8
   }
  },
  "U1QN9": {
@@ -168,11 +156,7 @@
    "PW_effective_mm": 38.1641,
    "PW_max_mm": 41.5767,
    "patellar_tilt_deg": 21.0931,
-   "FW_mm": 74.2297,
-   "PW_effective_slice": 106.0,
-   "PW_max_slice": 105.0,
-   "PW_effective_offset_mm": 27.6,
-   "PW_max_offset_mm": 27.0
+   "FW_mm": 74.2297
   }
  },
  "Y3082": {
@@ -212,11 +196,7 @@
    "PW_effective_mm": 37.6804,
    "PW_max_mm": 39.393,
    "patellar_tilt_deg": 20.5343,
-   "FW_mm": 75.8036,
-   "PW_effective_slice": 164.0,
-   "PW_max_slice": 165.0,
-   "PW_effective_offset_mm": 20.0,
-   "PW_max_offset_mm": 20.4
+   "FW_mm": 75.8036
   }
  }
 }

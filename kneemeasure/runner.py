@@ -332,9 +332,6 @@ def run_cohort(inputs, out_dir, laterality=None, id_columns=None, side_column=No
     changes = _archive_and_diff(out_dir, m_rows, cols) if extras else []
     write_csv(os.path.join(out_dir, 'measurements.csv'), m_rows, m_cols)
     measured = [r for r in m_rows if not r['error']]
-    patella_line = _patella_slices(m_rows)
-    if patella_line:
-        log(patella_line)
     for line in _bone_differences(m_rows):
         log(line)
     named = [dict(r, name=r.get('name') or p[1]) for p, r in zip(plan, results)]
@@ -501,23 +498,6 @@ def _describe_inputs(inputs):
     return '; '.join(f'{d} ({n} files)' if n else d for d, n in groups.items())
 
 
-def _patella_slices(m_rows):
-    """How many knees have PW_effective and PW_max on different slices, and
-    the spread of the distance between the two, or None without both."""
-    both = [r for r in m_rows if r.get('PW_effective_offset_mm') is not None and r.get('PW_max_offset_mm') is not None]
-    if not both:
-        return None
-    d = np.array([r['PW_max_offset_mm'] - r['PW_effective_offset_mm'] for r in both])
-    line = (f"patellar width: {int((np.abs(d) > 1e-6).sum())} of {len(both)} knees have PW_effective and PW_max "
-            f"on different slices")
-    if (np.abs(d) > 1e-6).any():
-        q1, q3 = np.percentile(d, [25, 75])
-        line += (f"; PW_max slice minus PW_effective slice: median {np.median(d):+.1f} mm "
-                 f"(IQR {q1:+.1f} to {q3:+.1f}, range {d.min():+.1f} to {d.max():+.1f}), "
-                 f"median distance {np.median(np.abs(d)):.1f} mm")
-    return line
-
-
 def _bone_differences(m_rows):
     """One line per trochlear measurement with a bone version: median and
     range of bone minus cartilage over the knees that have both."""
@@ -553,9 +533,6 @@ def _write_summary(path, cohort_name, plan, m_rows, measures, desc, flags, info,
                  + ', '.join(f"{v} {k}" for k, v in kinds.items()))
     elif os.path.exists(os.path.join(os.path.dirname(path), 'history')):
         L.append('- No changes since the previous run.')
-    patella_line = _patella_slices(m_rows)
-    if patella_line:
-        L.append(f"- {patella_line[0].upper()}{patella_line[1:]}.")
     bone_lines = _bone_differences(m_rows)
     if bone_lines:
         L.append('- Bone minus cartilage (the `_bone_` columns vs their cartilage versions):')

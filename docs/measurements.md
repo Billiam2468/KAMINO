@@ -39,8 +39,6 @@ patellar widths, femoral width).
 | `PW_max_mm` | maximum patellar width (Chen 2024 / Staubli): bony patella, tip to tip along its own axis |
 | `patellar_tilt_deg` | lateral patellar tilt (Chen 2024): PW_max line vs PBCL; **+ = lateral border posterior** (the lines converge laterally) |
 | `FW_mm` | femoral width (Chen 2024): the femur bone's extent along the PBCL, between the perpendiculars through its most medial and lateral points, on the PBCL slice ([below](#femoral-width)) |
-| `PW_effective_slice`, `PW_max_slice` | the axial slices (z, as the app numbers them) the widths were measured on; information only, not in the statistics |
-| `PW_effective_offset_mm`, `PW_max_offset_mm` | those slices' distance from the PBCL slice, + = proximal; information only |
 
 ## Landmark rules
 
@@ -145,21 +143,20 @@ the segmentation's own slices, which are parallel to the PD axial the raters rea
   tilt in both controls and patients). It is side-aware, like KRA, so left and right knees
   read alike.
 - **Slices:** the two widths are taken where each is largest, so they can come from
-  different slices. `PW_effective_slice`, `PW_max_slice` and their offsets from the PBCL
-  slice say which; the run log and `summary.md` say how many knees differ and by how much.
+  different slices; the QC grid shows both.
 - **Edge to edge:** each width runs from the outer corner of its outermost voxels, as for
   TTL's tibial width. Along a direction at angle a to the grid that adds |cos a| + |sin a|
   voxels: 1 along a grid axis, up to 1.41 at 45 deg. On 85 knees it added a median 1.19
   voxels to PW_effective (90% of knees under 1.33) and 1.23 to PW_max (under 1.39), whose
   axis can sit at a steeper angle to the grid.
 - **Structures:** each is its largest 3D piece, so stray voxels can't widen it.
+- **PW_effective can exceed PW_max** by up to about 2 mm on some knees, where the segmented
+  cartilage wraps a little past the end of the bone.
 - **Flags in `notes`:**
   - label 3 or 4 missing;
   - a second bony piece over 5% of the largest (a bipartite fragment, which isn't measured);
   - either label in more than one piece on its chosen slice;
   - the patella reaching the edge of the scan;
-  - PW_effective larger than PW_max. It happens on about 1 knee in 10, by up to about 2 mm,
-    where the segmented cartilage wraps a little past the end of the bone;
   - a tilt over 45 deg: worth a look in the QC. On the J-Sign knees these were real, severely
     tilted patellae.
 - **QC grid** ("Patellar width and tilt"): the PW_max slice with the bone (purple) and
