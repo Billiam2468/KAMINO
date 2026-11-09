@@ -39,6 +39,8 @@ patellar widths, femoral width).
 | `PW_max_mm` | maximum patellar width (Chen 2024 / Staubli): bony patella, tip to tip along its own axis |
 | `patellar_tilt_deg` | lateral patellar tilt (Chen 2024): PW_max line vs PBCL; **+ = lateral border posterior** (the lines converge laterally) |
 | `FW_mm` | femoral width (Chen 2024): the femur bone's extent along the PBCL, between the perpendiculars through its most medial and lateral points, on the PBCL slice ([below](#femoral-width)) |
+| `TW_mm` | trochlear width (Camp 2016): the patella's medial cartilage edge (from the PW_effective line) to the most lateral anterior trochlear cartilage across the trochlear range, along the PBCL ([below](#trochlear-width-and-apto)) |
+| `APTO_mm` | axial patellar-trochlear overlap, as our lab measures it by hand: the same, to the lateral edge of the anterior trochlear cartilage on the TT-TG groove slice |
 
 ## Landmark rules
 
@@ -163,6 +165,66 @@ the segmentation's own slices, which are parallel to the PD axial the raters rea
   cartilage (red), the PW_effective slice's cartilage see-through (orange) when it's another
   slice, PW_max (blue; diamond = lateral end), PW_effective parallel to the PBCL with
   perpendicular reference lines at its ends (gold), and the PBCL's direction (red).
+
+## Trochlear width and APTO
+
+Two columns for how far the patella's medial border sits medial of the lateral edge of the
+trochlear cartilage, along the PBCL: the "jump distance" the patella must cross to
+dislocate. They measure the patella's position against the trochlea, not the size of
+either. Guilbert et al. (Orthop Traumatol Surg Res 2013) first built an axial index from
+these landmarks (patellar and trochlear points on two axial images); Camp et al. (Am J
+Sports Med 2016;44(2):393-399) named it trochlear width and used it in their patellar
+instability ratios, as did Heidenreich et al. (Knee Surg Sports Traumatol Arthrosc
+2018;26:2858-2864) and Hevesi et al. (Am J Sports Med 2023;51:25-31).
+
+- **Patellar point (both):** the medial end of the PW_effective line: the medial edge of
+  the patellar cartilage (label 4) on the PW_effective slice.
+- **Trochlear point:** the lateral edge of the anterior trochlear cartilage: on each slice,
+  the most anterior femoral-cartilage piece that sits on bone (the piece the sulcus is found
+  on). These slices also carry cartilage on the back of the condyles, which reaches further
+  lateral; without this rule TW read a median 5.6 mm higher on 122 knees.
+  - **`TW_mm`**, Camp's definition as written: the most lateral such point across the
+    trochlear range (the top of the femoral cartilage down to the last slice before the femur
+    splits into two condyles).
+  - **`APTO_mm`**, our lab's manual "Axial Patellar-Trochlear Overlap" (the trochlear width
+    of the IRA paper, Arthrosc Sports Med Rehabil 2025, after Hevesi): the lateral edge on
+    the TT-TG groove slice (the reviewer's slice when the sulcus was reviewed). Use this one
+    to compare with manual values.
+- **Different slices:** the patellar and trochlear points are usually on different slices
+  (in these extended-knee scans the patella sits above the trochlea: the TW slice is a median
+  30 mm below the PW_effective slice, the APTO slice 19 mm). As in Camp's transfer between
+  images, both points are projected onto the PBCL direction, so the gap doesn't enter the
+  arithmetic.
+- **Conventions:** edge to edge, like PW_effective; side-aware; + = the patella's medial
+  border medial of the trochlear edge (the normal case).
+- **Agreement with manual APTO** (`MPFL+ Master.xlsx`, 84 knees matched by MRN, side and MRI
+  date; 45 cleaned segmentations, 39 model output). Rule 2 was tested and not kept:
+
+  | Lateral point's slice | KAMINO mean | manual mean | bias | 95% LoA | MAE | r | ICC(2,1) | ICC(3,1) |
+  |---|---|---|---|---|---|---|---|---|
+  | 1. most lateral across the trochlear range (`TW_mm`) | 27.8 | 23.7 | +4.1 | −4.9 to +13.1 | 5.1 | 0.86 | 0.77 | 0.86 |
+  | 2. the PW_effective slice, or the nearest with trochlear cartilage | 14.9 | 23.7 | −8.8 | −19.9 to +2.3 | 9.1 | 0.81 | 0.54 | 0.80 |
+  | 3. the TT-TG groove slice (`APTO_mm`) | 25.5 | 23.7 | +1.9 | −7.7 to +11.4 | 3.8 | 0.84 | 0.82 | 0.84 |
+
+  `TW_mm` departs from manual APTO because its lateral point sits near the notch roof (a
+  median 3.6 mm above it), where the edge mostly reflects how wide the distal femur is;
+  raters take the trochlear edge higher, nearer the patella's level. Rule 2 reads low because
+  the PW_effective slice lies above the trochlear cartilage in 59 of 84 knees, so it falls
+  back to the top of the trochlea, where it is narrowest. The ranking held on cleaned and
+  model segmentations alike. On the same knees PW_effective agreed with manual EPW at ICC
+  0.68 (bias −0.7 mm).
+- **Largest disagreements** (APTO): two were segmentation problems (a thin medial tail on
+  the patellar cartilage; an incomplete model segmentation of it), one a high groove slice
+  whose cartilage hadn't reached the lateral facet yet (TW on a lower slice matched the
+  manual value), and two looked right on the images.
+- **Flags in `notes`:** no femoral cartilage in the trochlear region; the lateral point on
+  the edge of the field of view; a value ≤ 0 (the patella's medial border lateral of the
+  trochlear edge); no TT-TG groove slice or no anterior cartilage on it (APTO only).
+- **QC grid** ("Trochlear width (Camp) and APTO"): the APTO slice with the femur (green),
+  the anterior trochlear cartilage (blue) and other femoral cartilage (grey), the
+  PW_effective slice's patellar cartilage see-through (red), dashed lines perpendicular to
+  the PBCL through the patella's medial edge (gold), the APTO point (sky blue) and the TW
+  point (violet, hollow when it's on another slice), and both widths as bars along the PBCL.
 
 ## Tuberosity out of the field of view
 

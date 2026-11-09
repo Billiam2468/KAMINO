@@ -42,6 +42,7 @@ Each measurement is a column in `measurements.csv`, one row per scan.
 | **Maximum patellar width** (Chen / Staubli) | `PW_max_mm` | Bony patella, tip to tip along its own axis |
 | **Patellar tilt** (Chen) | `patellar_tilt_deg` | Maximum-width line vs the femoral posterior condylar line; + = lateral tilt |
 | **Femoral width** (Chen) | `FW_mm` | Femur's width along the femoral posterior condylar line, on that line's slice |
+| **Trochlear width** (Camp) and **APTO** | `TW_mm`, `APTO_mm` | Patella's medial edge to the trochlear cartilage's lateral edge: most lateral anywhere (Camp), or on the TT-TG groove slice (matches manual APTO) |
 
 The file also has, per scan:
 

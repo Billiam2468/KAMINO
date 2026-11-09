@@ -36,7 +36,9 @@
    "PW_effective_mm": 39.2522,
    "PW_max_mm": 42.6629,
    "patellar_tilt_deg": 18.6099,
-   "FW_mm": 73.3377
+   "FW_mm": 73.3377,
+   "TW_mm": 40.6276,
+   "APTO_mm": 36.4132
   }
  },
  "DWAU5": {
@@ -76,7 +78,9 @@
    "PW_effective_mm": 39.887,
    "PW_max_mm": 39.9043,
    "patellar_tilt_deg": 9.4786,
-   "FW_mm": 70.2871
+   "FW_mm": 70.2871,
+   "TW_mm": 46.9933,
+   "APTO_mm": 42.6907
   }
  },
  "RJ259": {
@@ -116,7 +120,9 @@
    "PW_effective_mm": 48.6,
    "PW_max_mm": 51.328,
    "patellar_tilt_deg": 8.9938,
-   "FW_mm": 82.8
+   "FW_mm": 82.8,
+   "TW_mm": 51.3,
+   "APTO_mm": 44.1
   }
  },
  "U1QN9": {
@@ -156,7 +162,9 @@
    "PW_effective_mm": 38.1641,
    "PW_max_mm": 41.5767,
    "patellar_tilt_deg": 21.0931,
-   "FW_mm": 74.2297
+   "FW_mm": 74.2297,
+   "TW_mm": 29.8395,
+   "APTO_mm": 28.5712
   }
  },
  "Y3082": {
@@ -196,7 +204,9 @@
    "PW_effective_mm": 37.6804,
    "PW_max_mm": 39.393,
    "patellar_tilt_deg": 20.5343,
-   "FW_mm": 75.8036
+   "FW_mm": 75.8036,
+   "TW_mm": 39.0662,
+   "APTO_mm": 37.8663
   }
  }
 }

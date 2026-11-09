@@ -350,6 +350,11 @@ class TestPatellaWidth(unittest.TestCase):
             from kneemeasure.patella_width import find_patella_axis
             return find_patella_axis(self.case, self.knee_side)
 
+        @property
+        def patella_effective(self):
+            from kneemeasure.patella_width import find_effective_width
+            return find_effective_width(self.case, self.pbcl, self.knee_side)
+
     def _case(self, tilt, side):
         n, nz = 120, 7
         x, y = np.meshgrid((np.arange(n) - n / 2) * self.SP, (np.arange(n) - n / 2) * self.SP, indexing='ij')
@@ -533,6 +538,76 @@ class TestBoneTrochlea(unittest.TestCase):
             if '_bone_' in c:
                 name, unit = c.split('_bone_')
                 self.assertEqual(cols[cols.index(c) - 1], f'{name}_{unit}')          # right after its cartilage version
+
+
+class TestTrochlearWidth(unittest.TestCase):
+    """A synthetic knee: the V-groove trochlea of TestBoneTrochlea on slices
+    1-3, its anterior cartilage reaching 17, 16 and 15 mm lateral of the
+    groove (so the most lateral slice is the lowest, and the TT-TG groove
+    slice, the top one, reaches 15 mm), and a band of patellar cartilage
+    30 mm wide on slices 6-7, its medial edge 17 mm medial of the groove.
+    PBCL along x. Edge to edge adds half a voxel at each end."""
+    SP, A, D, T = 0.25, 12.0, 8.0, 4.0
+
+    def _case(self, side, shift=0.0, patella_centre=-2.0, femoral_cartilage=True):
+        from scipy.ndimage import distance_transform_edt
+        n, nz = 240, 9
+        x = (np.arange(n) - n / 2) * self.SP
+        y = (np.arange(n) - 100) * self.SP
+        X, Y = np.meshgrid(x, y, indexing='ij')
+        lateral = X if side == 'L' else -X                # lateral = larger x for a left knee
+        ax = np.abs(X)
+        h = np.where(ax <= self.A, self.D * ax / self.A, self.D - (ax - self.A))
+        bone2 = (ax <= self.A + self.D) & (Y >= -h) & (Y <= 30)
+        near = ~bone2 & (distance_transform_edt(~bone2) * self.SP <= self.T) & (Y < -h)
+        labels = np.zeros((n, n, nz), dtype=np.uint8)
+        bone, cart = np.zeros(labels.shape, dtype=bool), np.zeros(labels.shape, dtype=bool)
+        for z, reach in ((1, 5.0), (2, 4.0), (3, 3.0)):
+            bone[:, :, z] = bone2
+            if femoral_cartilage:
+                cart[:, :, z] = near & (ax <= self.A + reach)
+        c = patella_centre + shift
+        patella = (lateral >= c - 15) & (lateral <= c + 15) & (Y >= -24) & (Y <= -20)
+        for z in (6, 7):
+            labels[:, :, z][patella] = 4
+        labels[bone], labels[cart] = 1, 2
+        return {'labels': labels, 'bone': bone, 'cartilage': cart, 'spacing': (self.SP, self.SP, 2.0)}
+
+    def _run(self, case, side):
+        from kneemeasure import trochlear_width
+        from kneemeasure.landmarks import Landmarks
+        lm = Landmarks(case, side)
+        lm.__dict__['pbcl'] = {'theta': 0.0, 'z': 1, 'medial_pt': (60.0, 150.0), 'lateral_pt': (180.0, 150.0)}
+        return trochlear_width.compute(case, lm)
+
+    def test_values_sides_and_shift(self):
+        half = self.SP / 2
+        for side in ('L', 'R'):
+            with self.subTest(side=side):
+                r = self._run(self._case(side), side)
+                self.assertIsNone(r['note'])
+                self.assertAlmostEqual(r['values']['TW_mm'], (17 + half) + (17 + half))     # the lowest slice
+                self.assertAlmostEqual(r['values']['APTO_mm'], (15 + half) + (17 + half))   # the TT-TG groove slice
+                self.assertEqual(r['details']['TW_mm']['z'], 1)
+                self.assertEqual(r['details']['APTO_mm']['z'], 3)
+                self.assertAlmostEqual(r['details']['APTO_mm']['offset_mm'], -6.0)         # 3 slices below the patella's
+                for d in (1.0, 2.5):                     # the patella moved laterally by d: both shrink by d
+                    moved = self._run(self._case(side, shift=d), side)['values']
+                    self.assertAlmostEqual(moved['TW_mm'], r['values']['TW_mm'] - d)
+                    self.assertAlmostEqual(moved['APTO_mm'], r['values']['APTO_mm'] - d)
+
+    def test_flags(self):
+        r = self._run(self._case('L', patella_centre=35.0), 'L')                  # medial border lateral of the trochlea
+        self.assertLessEqual(r['values']['TW_mm'], 0)
+        self.assertIn("patella's medial border is lateral of the trochlear edge", r['note'])
+        r = self._run(self._case('L', femoral_cartilage=False), 'L')
+        self.assertIsNone(r['values']['TW_mm'])
+        self.assertIn('no femoral cartilage in the trochlear region', r['note'])
+        case = self._case('L')
+        edge = 120 + int(16 / self.SP)                    # cut the scan at 16 mm lateral: the cartilage meets its edge
+        for k in ('labels', 'bone', 'cartilage'):
+            case[k] = case[k][:edge + 1]
+        self.assertIn('edge of the field of view', self._run(case, 'L')['note'])
 
 
 @unittest.skipUnless(os.path.isdir(DATA), f'segmentation data not found at {DATA}')

@@ -145,6 +145,25 @@ def find_patella_axis(case, knee_side):
     return best
 
 
+def find_effective_width(case, pbcl, knee_side):
+    """PW_effective: the widest extent of the patellar cartilage (label 4,
+    largest 3D piece) along the PBCL, over every slice, as {'width_mm',
+    'medial_edge', 'lateral_edge', 'z'} (edges in index units, edge to
+    edge), or None without patellar cartilage or a PBCL. Its medial edge is
+    also trochlear width's patellar point."""
+    cart_raw = case['labels'] == PAT_C
+    if not cart_raw.any() or pbcl['theta'] is None:
+        return None
+    cart = largest_component_3d(cart_raw)
+    u, _ = pcl_axes(pbcl['theta'])
+    best = None
+    for z in np.where(cart.any(axis=(0, 1)))[0]:
+        w, med, lat = effective_width(cart[:, :, z], case['spacing'][:2], u, knee_side)
+        if best is None or w > best['width_mm']:
+            best = {'width_mm': w, 'medial_edge': tuple(med), 'lateral_edge': tuple(lat), 'z': int(z)}
+    return best
+
+
 def _n_pieces(mask2d):
     return ndimage.label(mask2d, structure=np.ones((3, 3)))[1]
 
@@ -179,17 +198,11 @@ def compute(case, lm):
         details['pbcl'] = {k: pbcl[k] for k in ('theta', 'z', 'medial_pt', 'lateral_pt')}
 
     # PW_effective: widest cartilage extent along the PBCL, over all slices
-    if cart_raw.any() and pbcl['theta'] is not None:
-        cart = largest_component_3d(cart_raw)
-        u, _ = pcl_axes(pbcl['theta'])
-        best = None
-        for z in np.where(cart.any(axis=(0, 1)))[0]:
-            w, med, lat = effective_width(cart[:, :, z], sxy, u, lm.knee_side)
-            if best is None or w > best[0]:
-                best = (w, med, lat, int(z))
-        w, med, lat, z = best
-        values.update(PW_effective_mm=w)
-        details['effective'] = {'z': z, 'medial_edge': tuple(med), 'lateral_edge': tuple(lat)}
+    eff = lm.patella_effective if cart_raw.any() else None
+    if eff is not None:
+        z = eff['z']
+        values.update(PW_effective_mm=eff['width_mm'])
+        details['effective'] = {'z': z, 'medial_edge': eff['medial_edge'], 'lateral_edge': eff['lateral_edge']}
         if _n_pieces(cart_raw[:, :, z]) > 1:
             notes.append(f'patellar cartilage is in more than one piece on the PW_effective slice (z {z})')
 
