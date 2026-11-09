@@ -43,7 +43,7 @@ from .validation import COLUMNS as VALIDATION_COLUMNS
 from .volume import find_segmentations, case_name_from_path, header_laterality
 
 VOLUME_COLUMNS = [c for c in VALIDATION_COLUMNS if c.startswith('vol_')]
-TT_DEPENDENT = ('TT_TG_mm', 'sTT_TG_mm', 'TTL', 'TTL_t_mm', 'TTL_T_mm')
+TT_DEPENDENT = ('TT_TG_mm', 'TT_TG_bone_mm', 'sTT_TG_mm', 'sTT_TG_bone_mm', 'TTL', 'TTL_t_mm', 'TTL_T_mm')
 META_DIR = '.kneemeasure'
 EXTRA_OUTPUTS = ('statistics.csv', 'qc_flags.csv', 'segmentation_check.csv', 'landmarks.csv',
                  'measurement_definitions.csv', 'changes.csv', 'summary.md', 'run_info.json', 'log.txt',
@@ -335,6 +335,8 @@ def run_cohort(inputs, out_dir, laterality=None, id_columns=None, side_column=No
     patella_line = _patella_slices(m_rows)
     if patella_line:
         log(patella_line)
+    for line in _bone_differences(m_rows):
+        log(line)
     named = [dict(r, name=r.get('name') or p[1]) for p, r in zip(plan, results)]
     if qc_grids:
         _write_qc(named, flags, measures, qc_dir, case_sheets, log, jobs)
@@ -516,6 +518,19 @@ def _patella_slices(m_rows):
     return line
 
 
+def _bone_differences(m_rows):
+    """One line per trochlear measurement with a bone version: median and
+    range of bone minus cartilage over the knees that have both."""
+    lines = []
+    for bone in (c for m in MEASURES for c, _, _ in m.columns if '_bone_' in c):
+        col = bone.replace('_bone_', '_')
+        d = np.array([r[bone] - r[col] for r in m_rows if r.get(col) is not None and r.get(bone) is not None])
+        if len(d):
+            lines.append(f"{bone} - {col}: median {np.median(d):+.2f} "
+                         f"(range {d.min():+.2f} to {d.max():+.2f}), n {len(d)}")
+    return lines
+
+
 def _write_summary(path, cohort_name, plan, m_rows, measures, desc, flags, info, changes=(), info_cols=()):
     L = [f"# {cohort_name or 'Knee measurement run'}", '',
          f"- Run: {info['run_started']} ({info['run_seconds'] / 60:.1f} min), kneemeasure {info['kneemeasure_version']}"
@@ -541,6 +556,10 @@ def _write_summary(path, cohort_name, plan, m_rows, measures, desc, flags, info,
     patella_line = _patella_slices(m_rows)
     if patella_line:
         L.append(f"- {patella_line[0].upper()}{patella_line[1:]}.")
+    bone_lines = _bone_differences(m_rows)
+    if bone_lines:
+        L.append('- Bone minus cartilage (the `_bone_` columns vs their cartilage versions):')
+        L += [f"  - {line}" for line in bone_lines]
     L += ['', '## Success per measurement', '',
          '| measurement | measured | failed / skipped |', '|---|---|---|']
     for m in measures:

@@ -20,21 +20,35 @@ Giovannetti de Sanctis et al., KSSTA 2025;33(8):2833-2846:
 
 Lateral facet: for a LEFT knee the larger-x peak, for a RIGHT knee the
 smaller-x peak.
+
+Bone versions (*_bone_* columns): the same eight values from the bony
+sulcus and facet peaks (Landmarks.reference_slice_bone) -- the same
+reference slice, PBCL and hull algorithm, on the femur bone surface.
 """
 import numpy as np
 
 from .pbcl import pcl_axes
 from .volume import true_physical_lp
 
+BONE_COLOR = 'magenta'                     # the bony points and lines in the QC grids
+
 COLUMNS = [
     ('LTI_deg', 'deg', 'lateral trochlear inclination (+ = lateral facet anterior to PBCL)'),
+    ('LTI_bone_deg', 'deg', 'bony LTI: the same, on the femur bone surface'),
     ('sulcus_angle_deg', 'deg', 'cartilage sulcus angle'),
+    ('sulcus_angle_bone_deg', 'deg', 'bony sulcus angle'),
     ('medial_facet_depth_mm', 'mm', 'medial facet height above the sulcus, perpendicular to PBCL'),
+    ('medial_facet_depth_bone_mm', 'mm', 'bony medial facet height above the bony sulcus, perpendicular to PBCL'),
     ('lateral_facet_depth_mm', 'mm', 'lateral facet height above the sulcus, perpendicular to PBCL'),
+    ('lateral_facet_depth_bone_mm', 'mm', 'bony lateral facet height above the bony sulcus, perpendicular to PBCL'),
     ('trochlear_depth_mm', 'mm', 'sulcus depth below the facet chord, perpendicular to PBCL'),
+    ('trochlear_depth_bone_mm', 'mm', 'bony sulcus depth below the bony facet chord, perpendicular to PBCL'),
     ('medial_facet_length_mm', 'mm', 'sulcus to medial facet peak'),
+    ('medial_facet_length_bone_mm', 'mm', 'bony sulcus to bony medial facet peak'),
     ('lateral_facet_length_mm', 'mm', 'sulcus to lateral facet peak'),
+    ('lateral_facet_length_bone_mm', 'mm', 'bony sulcus to bony lateral facet peak'),
     ('facet_asymmetry_ratio', 'ratio', 'medial / lateral facet length'),
+    ('facet_asymmetry_bone_ratio', 'ratio', 'bony medial / lateral facet length'),
 ]
 
 
@@ -83,20 +97,18 @@ def _facet_lengths_mm(sulcus, medial_pt, lateral_pt, spacing):
     return dist(sulcus, medial_pt), dist(sulcus, lateral_pt)
 
 
-def compute(case, lm):
-    empty = {c: None for c, _, _ in COLUMNS}
-    ref = lm.reference_slice
-    if ref['z'] is None:
-        return {'values': empty, 'note': f"reference slice: {ref['note']}"}
-    pbcl = lm.pbcl
-    if pbcl['theta'] is None:
-        return {'values': empty, 'note': 'no valid PBCL slice found'}
+def bone_column(col):
+    """The bone version's column name: '_bone' before the unit (LTI_deg -> LTI_bone_deg)."""
+    name, unit = col.rsplit('_', 1)
+    return f'{name}_bone_{unit}'
 
+
+def _surface_values(ref, knee_side, theta, spacing):
+    """The eight values from one surface's sulcus and facet peaks (cartilage
+    column names), and the medial and lateral peaks."""
     sorted_pts = sorted([ref['peak1'], ref['peak2']], key=lambda p: p[0])
-    lateral_pt, medial_pt = (sorted_pts[1], sorted_pts[0]) if lm.knee_side == 'L' else (sorted_pts[0], sorted_pts[1])
-    spacing = (case['spacing'][0], case['spacing'][1])
-    theta, s = pbcl['theta'], ref['sulcus']
-
+    lateral_pt, medial_pt = (sorted_pts[1], sorted_pts[0]) if knee_side == 'L' else (sorted_pts[0], sorted_pts[1])
+    s = ref['sulcus']
     med_depth, lat_depth = compute_facet_depths_mm(s, medial_pt, lateral_pt, theta, spacing)
     med_len, lat_len = _facet_lengths_mm(s, medial_pt, lateral_pt, spacing)
     values = {
@@ -109,8 +121,32 @@ def compute(case, lm):
         'lateral_facet_length_mm': lat_len,
         'facet_asymmetry_ratio': med_len / lat_len if lat_len != 0 else None,
     }
-    return {'values': values, 'note': None,
-            'details': {'z': ref['z'], 'medial_pt': medial_pt, 'lateral_pt': lateral_pt, 'sulcus': s}}
+    return values, medial_pt, lateral_pt
+
+
+def compute(case, lm):
+    empty = {c: None for c, _, _ in COLUMNS}
+    ref = lm.reference_slice
+    if ref['z'] is None:
+        return {'values': empty, 'note': f"reference slice: {ref['note']}"}
+    pbcl = lm.pbcl
+    if pbcl['theta'] is None:
+        return {'values': empty, 'note': 'no valid PBCL slice found'}
+
+    spacing = (case['spacing'][0], case['spacing'][1])
+    theta = pbcl['theta']
+    values, medial_pt, lateral_pt = _surface_values(ref, lm.knee_side, theta, spacing)
+    details = {'z': ref['z'], 'medial_pt': medial_pt, 'lateral_pt': lateral_pt, 'sulcus': ref['sulcus']}
+    note = None
+    bone = lm.reference_slice_bone
+    if bone['z'] is None:
+        values.update({bone_column(k): None for k in list(values)})
+        note = f"bone version: {bone['note']}"
+    else:
+        b, b_med, b_lat = _surface_values(bone, lm.knee_side, theta, spacing)
+        values.update({bone_column(k): v for k, v in b.items()})
+        details['bone'] = {'medial_pt': b_med, 'lateral_pt': b_lat, 'sulcus': bone['sulcus']}
+    return {'values': {c: values[c] for c, _, _ in COLUMNS}, 'note': note, 'details': details}
 
 
 def qc_payload(case, lm, result, margin=15):
@@ -132,12 +168,19 @@ def qc_payload(case, lm, result, margin=15):
         tl, tp = true_physical_lp(header, pt[0], pt[1], z)
         return float(tl), float(tp)
 
+    b = d.get('bone')
     return {'L': L, 'P': P, 'bone': bone_sl[x0:x1, y0:y1].copy(), 'cart': comp[x0:x1, y0:y1].copy(),
             'medial': to_true(d['medial_pt']), 'lateral': to_true(d['lateral_pt']),
-            'sulcus': to_true(d['sulcus']), **result['values']}
+            'sulcus': to_true(d['sulcus']),
+            'bone_points': {k: to_true(b[k]) for k in ('medial_pt', 'lateral_pt', 'sulcus')} if b else None,
+            **result['values']}
 
 
 def render_panel(ax, p, fontsize=8):
+    """Femur bone (green) and trochlear cartilage (purple) on the reference
+    slice. Cartilage points: medial peak yellow, lateral peak orange, sulcus
+    cyan diamond, facet chord dashed yellow, LTI line orange. Bone points and
+    lines the same shapes in magenta."""
     from matplotlib import colormaps
     from matplotlib.colors import ListedColormap
     for mask, cmap, alpha in ((p['bone'], 'Greens', 0.6), (p['cart'], 'Purples', 0.8)):
@@ -155,13 +198,22 @@ def render_panel(ax, p, fontsize=8):
     ax.scatter(*lat, color='orange', edgecolor='black', s=60, zorder=5)
     ax.scatter(*med, color='yellow', edgecolor='black', s=60, zorder=5)
     ax.scatter(*s, color='cyan', edgecolor='black', s=60, zorder=5, marker='D')
+    b = p.get('bone_points')
+    if b:                                            # the bony points and lines, magenta
+        bm, bl, bs = b['medial_pt'], b['lateral_pt'], b['sulcus']
+        ax.plot([bm[0], bl[0]], [bm[1], bl[1]], color=BONE_COLOR, linewidth=1.5, linestyle='--')
+        ax.plot([bs[0], bl[0]], [bs[1], bl[1]], color=BONE_COLOR, linewidth=2)
+        ax.scatter(*zip(bm, bl), color=BONE_COLOR, edgecolor='black', s=45, zorder=5)
+        ax.scatter(*bs, color=BONE_COLOR, edgecolor='black', s=45, zorder=5, marker='D')
     ax.axis('off')
 
 
 def panel_title(p):
     asym = f"{p['facet_asymmetry_ratio']:.2f}" if p['facet_asymmetry_ratio'] is not None else 'n/a'
+    bone = (f"bone: LTI={p['LTI_bone_deg']:.1f}deg, sulcus={p['sulcus_angle_bone_deg']:.1f}deg, "
+            f"depth={p['trochlear_depth_bone_mm']:.1f}mm" if p.get('LTI_bone_deg') is not None else 'bone: n/a')
     return (f"LTI={p['LTI_deg']:.1f}deg, sulcus={p['sulcus_angle_deg']:.1f}deg\n"
-            f"med={p['medial_facet_depth_mm']:.1f}mm, lat={p['lateral_facet_depth_mm']:.1f}mm, asym={asym}")
+            f"med={p['medial_facet_depth_mm']:.1f}mm, lat={p['lateral_facet_depth_mm']:.1f}mm, asym={asym}\n{bone}")
 
 
 def landmark_points(case, lm, result):
@@ -169,5 +221,11 @@ def landmark_points(case, lm, result):
     if not d:
         return []
     z = d['z']
-    return [('reference slice medial facet peak', (*d['medial_pt'], z)),
-            ('reference slice lateral facet peak', (*d['lateral_pt'], z))]
+    pts = [('reference slice medial facet peak', (*d['medial_pt'], z)),
+           ('reference slice lateral facet peak', (*d['lateral_pt'], z))]
+    b = d.get('bone')
+    if b:
+        pts += [('reference slice bony medial facet peak', (*b['medial_pt'], z)),
+                ('reference slice bony lateral facet peak', (*b['lateral_pt'], z)),
+                ('reference slice bony sulcus', (*b['sulcus'], z))]
+    return pts

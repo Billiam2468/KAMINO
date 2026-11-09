@@ -444,6 +444,98 @@ class TestFemoralWidth(unittest.TestCase):
         self.assertIn('edge of the scan', self._run(0.0, at_edge=True)['note'])
 
 
+class TestBoneTrochlea(unittest.TestCase):
+    """A synthetic trochlea: a V groove (half-width A, depth D) on the femur
+    bone, its facets falling away at 45 deg beyond the peaks, under
+    cartilage of uniform thickness T. PBCL along x; the tuberosity 10 mm
+    lateral of the groove. Expected values come from the geometry: the bony
+    points are the V's corners; the cartilage peaks sit T above the bony
+    peaks and the cartilage sulcus T / sin(half-angle) above the bony one."""
+    SP, A, D, T = 0.25, 12.0, 8.0, 4.0
+
+    def _case(self, side):
+        from scipy.ndimage import distance_transform_edt
+        n, nz = 200, 5
+        x = (np.arange(n) - n / 2) * self.SP
+        y = (np.arange(n) - 60) * self.SP                # the bony groove at y = 0; anterior = smaller y
+        X, Y = np.meshgrid(x, y, indexing='ij')
+        ax = np.abs(X)
+        h = np.where(ax <= self.A, self.D * ax / self.A, self.D - (ax - self.A))     # height of the bone surface
+        bone2 = (ax <= self.A + self.D) & (Y >= -h) & (Y <= 30)
+        cart2 = ~bone2 & (distance_transform_edt(~bone2) * self.SP <= self.T) & (ax <= self.A + 3) & (Y < -h)
+        bone = np.zeros((n, n, nz), dtype=bool)
+        cart = np.zeros_like(bone)
+        bone[:, :, 1:4] = bone2[:, :, None]
+        cart[:, :, 1:4] = cart2[:, :, None]
+        lateral = 10.0 if side == 'L' else -10.0         # lateral = larger x for a left knee
+        tub = (n / 2 + lateral / self.SP, 60 + 40 / self.SP, 1)
+        return {'bone': bone, 'cartilage': cart, 'spacing': (self.SP, self.SP, 2.0)}, tub
+
+    def _run(self, side, overrides=None):
+        from kneemeasure import trochlear_morphology, tt_tg
+        from kneemeasure.landmarks import Landmarks
+        case, tub = self._case(side)
+        lm = Landmarks(case, side, overrides)
+        lm.__dict__['pbcl'] = {'theta': 0.0, 'z': 1, 'medial_pt': (40.0, 150.0), 'lateral_pt': (160.0, 150.0)}
+        lm.__dict__['tuberosity'] = {'point': tub, 'note': None}
+        t, m = tt_tg.compute(case, lm), trochlear_morphology.compute(case, lm)
+        return dict(t['values'], **m['values']), [t['note'], m['note']]
+
+    def test_bone_and_cartilage_geometry(self):
+        A, D, T = self.A, self.D, self.T
+        half = np.arctan(A / D)                          # the V's half-angle at the sulcus
+        rise = T / np.sin(half)                          # cartilage sulcus above the bony one
+        d_cart = D + T - rise                            # cartilage peaks T above the bony peaks
+        for side in ('L', 'R'):
+            v, notes = self._run(side)
+            with self.subTest(side=side):
+                self.assertEqual(notes, [None, None])
+                self.assertAlmostEqual(v['sulcus_angle_bone_deg'], np.degrees(2 * half), delta=1.0)
+                self.assertAlmostEqual(v['sulcus_angle_deg'], np.degrees(2 * np.arctan(A / d_cart)), delta=1.0)
+                self.assertGreater(v['sulcus_angle_deg'] - v['sulcus_angle_bone_deg'], 3.0)  # not equal, even uniform
+                self.assertAlmostEqual(v['LTI_bone_deg'], np.degrees(np.arctan(D / A)), delta=1.0)
+                self.assertAlmostEqual(v['LTI_deg'], np.degrees(np.arctan(d_cart / A)), delta=1.0)
+                self.assertAlmostEqual(v['trochlear_depth_bone_mm'], D, delta=2 * self.SP)
+                self.assertAlmostEqual(v['trochlear_depth_mm'], d_cart, delta=2 * self.SP)
+                self.assertAlmostEqual(v['lateral_facet_length_bone_mm'], np.hypot(A, D), delta=2 * self.SP)
+                self.assertAlmostEqual(v['lateral_facet_length_mm'], np.hypot(A, d_cart), delta=2 * self.SP)
+                # the voxelised V's floor is a short flat run, so the sulcus can sit a voxel off centre (~3%)
+                self.assertAlmostEqual(v['facet_asymmetry_bone_ratio'], 1.0, delta=0.05)
+                self.assertAlmostEqual(v['facet_asymmetry_ratio'], 1.0, delta=0.05)
+                # the groove moves straight back, so TT-TG is the same on both surfaces
+                self.assertAlmostEqual(v['TT_TG_bone_mm'], 10.0, delta=self.SP)
+                self.assertAlmostEqual(v['TT_TG_mm'], v['TT_TG_bone_mm'], delta=self.SP)
+                # ... and sTT-TG differs by how far the cartilage groove sits in front of the bony one
+                self.assertAlmostEqual(v['sTT_TG_bone_mm'] - v['sTT_TG_mm'], rise, delta=2 * self.SP)
+
+    def test_reviewed_sulcus(self):
+        from kneemeasure.trochlea import find_reference_slice
+        case, _ = self._case('L')
+        ref = find_reference_slice(case)
+        sulcus = {'z': ref['z'], 'sulcus': [float(v) for v in ref['sulcus']],
+                  'peaks': [[float(v) for v in ref['peak1']], [float(v) for v in ref['peak2']]]}
+        auto, _ = self._run('L')
+        for status in ('accepted', 'replaced'):
+            v, notes = self._run('L', {'sulcus': dict(sulcus, status=status)})
+            with self.subTest(status=status):          # the bone points stay automatic on the reviewed slice
+                self.assertAlmostEqual(v['sulcus_angle_bone_deg'], auto['sulcus_angle_bone_deg'])
+                self.assertAlmostEqual(v['TT_TG_bone_mm'], auto['TT_TG_bone_mm'])
+                self.assertEqual(notes, [None, None])
+        # clicked cartilage points on another slice: the bone points move to that slice
+        clicked = dict(sulcus, status='replaced', z=ref['z'] - 1, sulcus=[100.0, 70.0], peaks=[[52.0, 30.0], [148.0, 30.0]])
+        v, _ = self._run('L', {'sulcus': clicked})
+        self.assertNotAlmostEqual(v['sulcus_angle_deg'], auto['sulcus_angle_deg'], places=1)   # cartilage = the clicks
+        self.assertAlmostEqual(v['sulcus_angle_bone_deg'], auto['sulcus_angle_bone_deg'])      # same shape on z - 1
+
+    def test_column_order(self):
+        from kneemeasure.pipeline import MEASURES, value_columns
+        cols = value_columns(MEASURES)
+        for c in cols:
+            if '_bone_' in c:
+                name, unit = c.split('_bone_')
+                self.assertEqual(cols[cols.index(c) - 1], f'{name}_{unit}')          # right after its cartilage version
+
+
 @unittest.skipUnless(os.path.isdir(DATA), f'segmentation data not found at {DATA}')
 class TestRegression(unittest.TestCase):
     def test_tpcl_at_slice_matches_method(self):

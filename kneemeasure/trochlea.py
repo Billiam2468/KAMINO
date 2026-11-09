@@ -19,6 +19,17 @@ components -- once the condyles separate, we've left the trochlea.
 
 No rotation step is needed: convexity-defect detection on the closed
 cartilage contour is orientation-independent.
+
+Bone surface (sulcus_on_slice(surface='bone')): the same hull algorithm
+on the femur BONE, on a slice the cartilage has already chosen (the
+reference slice), for the bony versions of the trochlear measurements.
+Two things differ, both forced by the surface: the outline is the femur's
+largest piece on the slice (not the most anterior cartilage piece), and
+only bone counts as "something in front" of a point -- the bony groove
+always has cartilage in front of it. On 121 cleaned knees a bony groove
+was found on every reference slice (>= 2.8 mm deep), and peaks as hull
+corners held up on tilted trochleae where "most anterior from the PBCL"
+did not.
 """
 import numpy as np
 import cv2
@@ -171,24 +182,44 @@ def find_reference_slice(case, min_depth_mm=2.0):
     return {'z': None, 'note': 'no slice found with a real sulcus above the split boundary'}
 
 
-def sulcus_on_slice(bone_sl, cart_sl, spacing_x, z, min_depth_mm=0.0):
+def largest_component_2d(mask2d):
+    """The largest 8-connected piece of a 2D mask (the femur's cross-section
+    without stray crumbs)."""
+    lbl, n = ndimage.label(mask2d, structure=np.ones((3, 3)))
+    if n <= 1:
+        return mask2d.astype(bool)
+    return lbl == 1 + int(np.argmax(ndimage.sum(mask2d, lbl, range(1, n + 1))))
+
+
+def sulcus_on_slice(bone_sl, cart_sl, spacing_x, z, min_depth_mm=0.0, surface='cartilage'):
     """Facet peaks + sulcus on one axial slice (the reference-slice result
     format), or None if this slice has no eligible sulcus. Also used for a
-    slice a reviewer picks, with no depth floor."""
-    component = most_anterior_component(cart_sl, bone_sl)
+    slice a reviewer picks, with no depth floor.
+
+    surface='bone': the same algorithm on the femur bone (cart_sl unused);
+    see the module docstring. The result's 'bone_component' is the outline
+    used, in place of 'cartilage_component'."""
+    if surface == 'bone':
+        component = largest_component_2d(bone_sl)
+        in_front = np.zeros_like(component)         # only the bone itself blocks: cartilage lies in front
+    else:
+        component = most_anterior_component(cart_sl, bone_sl)
+        in_front = bone_sl
     if component.sum() == 0:
         return None
-    result = find_peaks_and_sulcus(component, bone_sl, spacing_x, min_depth_mm=min_depth_mm)
+    result = find_peaks_and_sulcus(component, in_front, spacing_x, min_depth_mm=min_depth_mm)
     if result is None:
         return None
-    return {
+    out = {
         'z': int(z), 'depth_mm': result['depth_mm'],
         'peak1': result['peak1'], 'peak2': result['peak2'], 'sulcus': result['sulcus'],
         'point': (int(result['sulcus'][0]), int(result['sulcus'][1]), int(z)),
         'hull_points': result['hull_points'],
-        'bone_slice': bone_sl, 'cartilage_component': component,
+        'bone_slice': bone_sl,
         'note': None,
     }
+    out['bone_component' if surface == 'bone' else 'cartilage_component'] = component
+    return out
 
 
 def find_deepest_cartilage_groove(case, min_depth_mm=0.0):

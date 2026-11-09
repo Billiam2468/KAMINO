@@ -20,10 +20,10 @@ from .pipeline import MEASURES
 _PANELS = {
     'overview': (3.2, 3.6, 7),
     'kra': (4.0, 4.2, 8),
-    'tt_tg': (6.0, 6.3, 6),
+    'tt_tg': (6.0, 6.5, 6),
     'ptltr': (6.0, 6.3, 9),
     'ttl': (4.0, 4.2, 9),
-    'trochlear': (4.0, 4.2, 8),
+    'trochlear': (4.0, 4.5, 8),
     'bump_height': (4.0, 4.2, 8),
     'cdi': (4.0, 4.5, 7),
     'patella_width': (4.0, 4.2, 7),

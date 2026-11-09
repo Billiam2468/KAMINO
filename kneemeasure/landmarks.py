@@ -15,7 +15,7 @@ from .patella_width import find_patella_axis
 from .pbcl import find_pbcl
 from .tibial_pcl import find_tibial_pcl
 from .tibial_tuberosity import find_tibial_tuberosity
-from .trochlea import find_reference_slice, find_deepest_cartilage_groove, most_anterior_component
+from .trochlea import find_reference_slice, find_deepest_cartilage_groove, most_anterior_component, sulcus_on_slice
 
 
 class Landmarks:
@@ -60,6 +60,21 @@ class Landmarks:
                 'peak1': tuple(review['peaks'][0]), 'peak2': tuple(review['peaks'][1]),
                 'point': (sulcus[0], sulcus[1], z), 'hull_points': None,
                 'bone_slice': bone_sl, 'cartilage_component': cart_sl, 'note': None, 'review': review['status']}
+
+    @cached_property
+    def reference_slice_bone(self):
+        """The bony sulcus and facet peaks, found automatically on the slice
+        the cartilage values use (the same algorithm, on the femur bone):
+        the reference slice, or the reviewer's slice when the cartilage
+        sulcus was reviewed. The review sets only the cartilage points."""
+        ref = self.reference_slice
+        if ref['z'] is None:
+            return {'z': None, 'note': ref['note']}
+        if self.case.get('bone') is None:
+            return {'z': None, 'note': 'no bone loaded'}
+        z = ref['z']
+        found = sulcus_on_slice(self.case['bone'][:, :, z], None, self.case['spacing'][0], z, surface='bone')
+        return found or {'z': None, 'note': f'no bony groove on the reference slice (z {z})'}
 
     @cached_property
     def patella_axis(self):

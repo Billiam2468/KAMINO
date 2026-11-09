@@ -27,12 +27,15 @@ Each measurement is a column in `measurements.csv`, one row per scan.
 | **KRA**, knee rotation angle | `KRA_deg` | Tibial vs femoral posterior condylar line; + = tibial external rotation |
 | **TT-TG** | `TT_TG_mm` | Tibial tuberosity to trochlear groove, along the femoral posterior condylar line |
 | **sTT-TG**, sagittal TT-TG | `sTT_TG_mm` | The same, front to back; − = tuberosity behind the groove |
+| **Bony TT-TG**, **sTT-TG** | `TT_TG_bone_mm`, `sTT_TG_bone_mm` | The same, to the groove on the bone instead of the cartilage |
 | **PTLTR** | `PTLTR_mm` | Patella's lateral edge to the lateral trochlear ridge |
 | **TTL**, tibial tubercle lateralization | `TTL` | Tuberosity's position across the tibia's width, from the medial edge (a fraction) |
 | **LTI**, lateral trochlear inclination | `LTI_deg` | Lateral facet vs the femoral posterior condylar line |
 | **Sulcus angle** | `sulcus_angle_deg` | Angle between the trochlear cartilage facets |
 | **Trochlear depth** | `trochlear_depth_mm` | Groove depth below the facets; plus each facet's depth |
 | **Facet lengths** | `medial_/lateral_facet_length_mm` | Groove to each facet peak; plus `facet_asymmetry_ratio` |
+| **Bony LTI**, **sulcus angle** | `LTI_bone_deg`, `sulcus_angle_bone_deg` | The same, with the groove and facet peaks on the bone |
+| **Bony trochlear depth**, **facet lengths** | `trochlear_depth_bone_mm`, `..._facet_..._bone_mm`, `facet_asymmetry_bone_ratio` | The same, on the bone |
 | **Bump height** | `bone_bump_mm`, `cartilage_bump_mm` | Trochlear bump above the anterior femoral cortex |
 | **CDI** | `CDI` | Caton-Deschamps index |
 | **Effective patellar width** (Hevesi) | `PW_effective_mm` | Widest extent of the patellar cartilage, along the femoral posterior condylar line |

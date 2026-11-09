@@ -18,14 +18,21 @@ patellar widths, femoral width).
 |---|---|
 | `KRA_deg` | Knee rotation angle: tibial posterior condylar line (TPCL) vs femoral posterior bicondylar line (PBCL). **+ = tibial external rotation** relative to the femur. |
 | `TT_TG_mm` | TT-TG along the PBCL; the groove is the sulcus of the Dejour cartilage reference slice |
+| `TT_TG_bone_mm` | bony TT-TG: the same, to the bony sulcus on the same slice ([below](#bone-versions-of-the-trochlear-measurements)) |
 | `sTT_TG_mm` | sagittal TT-TG, perpendicular to the PBCL; **negative = TT posterior to TG** |
+| `sTT_TG_bone_mm` | bony sagittal TT-TG |
 | `PTLTR_mm` | patella's lateral border (the lateral end of the PW_max line, on its widest slice) to the lateral trochlear bony ridge on the tendon cut (the first slice below the patella, or the nearest slice with a usable ridge), along the posterior condylar line on that slice (unsigned; Mistovich 2018, with the patella's edge for the tendon's) |
 | `TTL`, `TTL_t_mm`, `TTL_T_mm` | tubercle lateralization t/T along the TPCL (t = medial tibial edge to TT, T = tibial width) |
 | `LTI_deg` | lateral trochlear inclination at the Dejour reference slice (+ = lateral facet anterior to PBCL) |
+| `LTI_bone_deg` | bony LTI: the bony sulcus to the bony lateral facet peak |
 | `sulcus_angle_deg` | cartilage sulcus angle at the reference slice |
+| `sulcus_angle_bone_deg` | bony sulcus angle on the same slice |
 | `medial_/lateral_facet_depth_mm` | facet height above the sulcus, perpendicular to the PBCL |
+| `medial_/lateral_facet_depth_bone_mm` | the same, bony |
 | `trochlear_depth_mm` | sulcus depth below the facet chord, perpendicular to the PBCL |
+| `trochlear_depth_bone_mm` | the same, bony |
 | `medial_/lateral_facet_length_mm`, `facet_asymmetry_ratio` | sulcus to facet-peak distances; asymmetry = medial / lateral |
+| `medial_/lateral_facet_length_bone_mm`, `facet_asymmetry_bone_ratio` | the same, bony |
 | `bone_bump_mm`, `cartilage_bump_mm` | trochlear bump height above the anterior femoral cortex line, on the sagittal slice through the deepest groove |
 | `CDI`, `CDI_numerator_mm`, `patella_cartilage_length_mm` | Caton-Deschamps index on the sagittal slice with the longest patellar cartilage |
 | `PW_effective_mm` | effective patellar width (Hevesi 2023): widest medial-lateral extent of the patellar cartilage, parallel to the PBCL ([below](#patellar-width-and-tilt)) |
@@ -39,6 +46,9 @@ patellar widths, femoral width).
 
 - **Dejour reference slice:** the first slice, cranial to caudal, with a cartilage sulcus
   of at least 2 mm.
+- **Sulcus and facet peaks:** on that slice, the convex hull of the trochlear cartilage's
+  outline; the deepest gap between outline and hull is the sulcus, the gap's two ends (the
+  hull corners) the facet peaks. The bony points: the same on the femur bone.
 - **PBCL:** the bitangent of the posterior femoral condyles, on the slice where it lies
   most posterior.
 - **TPCL:** one slice, the first below the tibial plateau where the posterior notch is clearly
@@ -48,6 +58,42 @@ patellar widths, femoral width).
   lateral point.
 
 Each module's docstring gives the full method and the reasons behind each rule.
+
+## Bone versions of the trochlear measurements
+
+Each cartilage-based trochlear measurement has a bony version, `_bone_` before the unit
+(`TT_TG_bone_mm`, `sulcus_angle_bone_deg`, ...), next to it in `measurements.csv`. Manual
+measurements and most of the literature use bony landmarks; these allow a like-for-like
+comparison.
+
+- **Same as the cartilage version:** the reference slice (chosen by the cartilage, as in
+  the Lyon method: the first slice with a cartilage groove at least 2 mm deep), the PBCL,
+  the hull algorithm, medial/lateral by knee side, and the tuberosity for TT-TG. Only the
+  surface the sulcus and facet peaks sit on changes.
+- **What differs, because of the surface:** the outline is the femur's largest piece on
+  the slice, not the most anterior cartilage piece; and only bone counts as "something in
+  front" of a candidate groove (the bony groove always has cartilage in front of it). No
+  depth floor on bone: the slice is already chosen.
+- **Peaks are hull corners on both surfaces**, not the most anterior point from the PBCL:
+  on a tilted trochlea the low facet has no forward bump relative to the PBCL, and that
+  rule put its "peak" next to the groove.
+- **Reviewed sulcus:** the review sets only the cartilage points. The bony points are
+  always found automatically, on the slice the cartilage values use (the reviewer's slice
+  when the sulcus was reviewed). The app can't yet show or correct the bony points; check
+  them in the QC grids.
+- **Feasibility:** on 121 cleaned knees a bony groove was found on every reference slice,
+  at least 2.8 mm deep (median 4.3 mm).
+- **Bone minus cartilage** (121 knees, six pulls, with their review decisions): sulcus
+  angle median −8.9° (IQR −12.1 to −5.2; the cartilage is flatter, as in van Huyssteen
+  2006); trochlear depth +2.0 mm; sTT-TG +3.7 mm (the bony groove lies behind the
+  cartilage one); TT-TG +0.2 mm (IQR −1.6 to +1.7); LTI +0.3° (IQR −2.3 to +2.6). The
+  bony facet lengths run longer (medial +4.7, lateral +3.7 mm): on this proximal slice
+  the cartilage often covers only the middle of the trochlea, and a bony peak can sit
+  beyond the cartilage's edge.
+- **QC grids:** the bony points and lines in magenta, the same shapes as the cartilage
+  ones (trochlear grid), and the bony groove with its projection onto the PBCL (TT-TG
+  grid); the bony values are in each panel's title. A run's `summary.md` and log give the
+  median and range of bone minus cartilage for each measurement.
 
 ## Femoral width
 

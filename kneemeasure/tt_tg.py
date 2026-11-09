@@ -18,6 +18,10 @@ With PBCL unit vector u_along and anterior-facing perpendicular u_anterior
 
     TT-TG  = |v . u_along|
     sTT-TG = STT_TG_SIGN * (v . u_anterior)    (negative = TT posterior to TG)
+
+Bone versions (TT_TG_bone_mm, sTT_TG_bone_mm): the same, with the groove
+at the BONY sulcus on the same reference slice (Landmarks.reference_slice_bone);
+the tuberosity is already a bone point.
 """
 import numpy as np
 
@@ -28,12 +32,22 @@ STT_TG_SIGN = 1
 
 COLUMNS = [
     ('TT_TG_mm', 'mm', 'TT-TG distance along the PBCL'),
+    ('TT_TG_bone_mm', 'mm', 'bony TT-TG: the groove at the bony sulcus of the same reference slice'),
     ('sTT_TG_mm', 'mm', 'sagittal TT-TG, perpendicular to the PBCL (- = TT posterior to TG)'),
+    ('sTT_TG_bone_mm', 'mm', 'bony sagittal TT-TG (- = TT posterior to the bony groove)'),
 ]
+BONE_COLOR = 'magenta'                     # the bony groove in the QC grid
+
+
+def _distances(groove_pt, tubercle_pt, spacing_xy, theta):
+    """(TT-TG, sTT-TG) in mm between a groove point and the tuberosity."""
+    v = np.array(tubercle_pt[:2]) * spacing_xy - np.array(groove_pt[:2]) * spacing_xy
+    u_along, u_anterior = pcl_axes(theta)
+    return abs(float(np.dot(v, u_along))), STT_TG_SIGN * float(np.dot(v, u_anterior))
 
 
 def compute(case, lm):
-    empty = {'TT_TG_mm': None, 'sTT_TG_mm': None}
+    empty = {c: None for c, _, _ in COLUMNS}
     pbcl = lm.pbcl
     if pbcl['theta'] is None:
         return {'values': empty, 'note': 'PBCL not found'}
@@ -45,11 +59,16 @@ def compute(case, lm):
         return {'values': empty, 'note': f"tibial tuberosity not found -- {tubercle['note']}"}
 
     spacing_xy = np.array(case['spacing'][:2])
-    v = np.array(tubercle['point'][:2]) * spacing_xy - np.array(groove['point'][:2]) * spacing_xy
-    u_along, u_anterior = pcl_axes(pbcl['theta'])
-    return {'values': {'TT_TG_mm': abs(float(np.dot(v, u_along))),
-                       'sTT_TG_mm': STT_TG_SIGN * float(np.dot(v, u_anterior))},
-            'note': None,
+    tt_tg, stt_tg = _distances(groove['point'], tubercle['point'], spacing_xy, pbcl['theta'])
+    values = {'TT_TG_mm': tt_tg, 'TT_TG_bone_mm': None, 'sTT_TG_mm': stt_tg, 'sTT_TG_bone_mm': None}
+    note = None
+    bone = lm.reference_slice_bone
+    if bone['z'] is None:
+        note = f"bone version: {bone['note']}"
+    else:
+        values['TT_TG_bone_mm'], values['sTT_TG_bone_mm'] = _distances(bone['point'], tubercle['point'],
+                                                                      spacing_xy, pbcl['theta'])
+    return {'values': values, 'note': note,
             'aux': {'groove_z': groove['z'], 'tuberosity_z': tubercle['point'][2]}}
 
 
@@ -67,6 +86,7 @@ def qc_payload(case, lm, result, margin_mm=15.0):
             'tibia': qc_draw.crop(tb, box),
             'peak1': g['peak1'], 'peak2': g['peak2'],
             'groove_point': g['point'], 'tubercle_point': t['point'], 'tt_below_mm': below_mm,
+            'bone_groove_point': lm.reference_slice_bone.get('point'),
             'pbcl_medial': pbcl['medial_pt'], 'pbcl_lateral': pbcl['lateral_pt'], 'pbcl_theta': pbcl['theta'],
             **result['values']}
 
@@ -76,7 +96,9 @@ def render_panel(ax, p, fontsize=6):
     on top (an outline of the lowest tibia slice when the tuberosity is below
     the segmentation), the facet chord, both landmarks, the PBCL axis at its
     own position, each point's projection onto it, the TT-TG bracket along
-    the PBCL and the sTT-TG bracket perpendicular to it."""
+    the PBCL and the sTT-TG bracket perpendicular to it. The bony groove
+    (magenta) and its dotted projection onto the PBCL; its values are in
+    the title."""
     sx, sy = p['spacing_xy']
     box = p['box']
     X, Y = qc_draw.mesh_mm(box, p['spacing_xy'])
@@ -105,6 +127,11 @@ def render_panel(ax, p, fontsize=6):
     for pt in (groove_mm, tubercle_mm):
         foot = pbcl_mid + np.dot(pt - pbcl_mid, u) * u
         ax.plot([pt[0], foot[0]], [pt[1], foot[1]], color='black', linestyle=':', linewidth=1.5)
+    if p.get('bone_groove_point') is not None:     # the bony groove and its projection onto the PBCL
+        bone_mm = np.array(p['bone_groove_point'][:2]) * (sx, sy)
+        foot = pbcl_mid + np.dot(bone_mm - pbcl_mid, u) * u
+        ax.plot([bone_mm[0], foot[0]], [bone_mm[1], foot[1]], color=BONE_COLOR, linestyle=':', linewidth=1.5)
+        ax.scatter(*bone_mm, color=BONE_COLOR, edgecolor='black', s=70, zorder=6)
     ax.scatter(*groove_mm, color='red', edgecolor='black', s=90, zorder=6)
     ax.scatter(*tubercle_mm, color='red', edgecolor='black', s=90, zorder=6, marker='D')
 
@@ -125,7 +152,9 @@ def render_panel(ax, p, fontsize=6):
 
 
 def panel_title(p):
-    return f"TT-TG={p['TT_TG_mm']:.1f}mm, sTT-TG={p['sTT_TG_mm']:+.1f}mm"
+    bone = (f"bone: TT-TG={p['TT_TG_bone_mm']:.1f}mm, sTT-TG={p['sTT_TG_bone_mm']:+.1f}mm"
+            if p.get('TT_TG_bone_mm') is not None else 'bone: n/a')
+    return f"TT-TG={p['TT_TG_mm']:.1f}mm, sTT-TG={p['sTT_TG_mm']:+.1f}mm\n{bone}"
 
 
 def landmark_points(case, lm, result):
@@ -133,6 +162,9 @@ def landmark_points(case, lm, result):
     g = lm.reference_slice
     if g['z'] is not None:
         pts.append(('trochlear groove / reference slice sulcus', g['point']))
+    b = lm.reference_slice_bone
+    if b['z'] is not None:
+        pts.append(('bony trochlear groove / reference slice bony sulcus', b['point']))
     t = lm.tuberosity
     if t['point'] is not None:
         pts.append(('tibial tuberosity', t['point']))
