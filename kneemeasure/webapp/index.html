@@ -1182,17 +1182,21 @@ function renderGrid() {
     }
     if (t) { d.classList.toggle('sel', PS.sel.has(c.case)); d.classList.toggle('done', c.status !== 'unreviewed'); }
   }
-  const {accept, review, noAuto, waiting} = prescreenPlan();
+  const {accept, review, kept, noAuto, waiting} = prescreenPlan();
   const todo = PS.cases.filter(c => c.status === 'unreviewed').length;
   $('psCount').innerHTML = `${todo} without a decision · ${review.length} selected` + (waiting ? ` · ${waiting} still loading` : '') +
     (noAuto.length ? ` · <span style="color: var(--warn)">${noAuto.length} unselected with no automatic ${THING[STEP]}</span>` : '');
   const btn = $('psApply');
   btn.disabled = waiting > 0;
+  // every scan is in exactly one part, so the numbers add up to the total
+  const parts = [accept.length && `accept ${accept.length}`, kept.length && `keep ${kept.length} decided`,
+                 noAuto.length && `leave ${noAuto.length} with no ${THING[STEP]}`,
+                 review.length && `review ${review.length} selected`].filter(Boolean).join(' · ');
+  const what = parts.charAt(0).toUpperCase() + parts.slice(1);
   btn.textContent = waiting ? 'Waiting for all scans to load…'
-    : !accept.length && !review.length ? `Go on to ${NEXT_NAME[STEP]} →`
-    : !review.length ? `Accept ${accept.length} and go on to ${NEXT_NAME[STEP]} →`
-    : accept.length ? `Accept ${accept.length} unselected · review ${review.length} selected →`
-    : `Review ${review.length} selected →`;
+    : !parts ? `Go on to ${NEXT_NAME[STEP]} →`
+    : review.length ? `${what} →`
+    : `${what} and go on to ${NEXT_NAME[STEP]} →`;
   btn.title = `Unselected scans without a decision get the automatic ${THING[STEP]} accepted; scans that already ` +
               `have a decision keep it. Selected scans (decided or not) open in the review; with none selected, ` +
               `this goes straight on to ${NEXT_NAME[STEP]}.`;
@@ -1200,16 +1204,19 @@ function renderGrid() {
 
 // What the button will do: accept the automatic point for unselected scans that have no decision yet
 // (and have an automatic point); open every selected scan, decided or not, in the review.
-// Unselected scans with no decision and no automatic point are left without one (noAuto).
+// Unselected scans with no decision and no automatic point are left without one (noAuto); unselected
+// scans that already have a decision keep it (kept).
 function prescreenPlan() {
-  const accept = [], review = [], noAuto = [];
+  const accept = [], review = [], kept = [], noAuto = [];
   let waiting = 0;
   for (const c of PS.cases) {
     const t = PS.thumbs[c.case];
     if (PS.sel.has(c.case)) review.push(c.case);
-    else if (c.status === 'unreviewed') { if (!t) waiting++; else (t.auto ? accept : noAuto).push(c.case); }
+    else if (c.status !== 'unreviewed') kept.push(c.case);
+    else if (!t) waiting++;
+    else (t.auto ? accept : noAuto).push(c.case);
   }
-  return {accept, review, noAuto, waiting};
+  return {accept, review, kept, noAuto, waiting};
 }
 
 function badgeClass(c) { return c.status !== 'unreviewed' ? 'b-' + c.status : (c.flag ? 'b-flag' : 'b-unreviewed'); }

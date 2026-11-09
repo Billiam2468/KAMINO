@@ -61,8 +61,10 @@ A grid with one tile per scan.
 - **Selecting:** nothing starts out selected: click the tiles that need a closer look.
   "Select flagged" picks the scans flagged as maybe out of view or without an automatic
   point.
-- **"Accept N · review M":** accepts the automatic point for every unselected scan
-  (recorded as "accepted at prescreen") and opens the review with only the selected scans.
+- **"Accept N · keep K decided · review M selected":** the three numbers add up to every
+  scan. It accepts the automatic point for every unselected scan without a decision
+  (recorded as "accepted at prescreen"), leaves unselected scans that already have a
+  decision as they are, and opens the review with only the selected scans.
   "show all" in the review list brings the rest back. With no scan selected, the button
   accepts the rest and goes on to the next step. If an unselected scan has no automatic point, the page
   warns you first, since that scan would be left without a decision.
