@@ -96,9 +96,20 @@ class App:
         p = self.project
         if p is None:
             return {'project': None}
-        reviews = review_store.load(p.review_file)['cases']
+        data = review_store.load(p.review_file)
+        reviews = data['cases']
         n = sum(1 for c in reviews.values() for k in review_store.LANDMARK_KEYS if k in c)
-        return {'project': dict(p.summary(), n_decisions=n), 'cases': p.table(reviews), 'job': self.job}
+        return {'project': dict(p.summary(), n_decisions=n, trochlea_qc=review_store.trochlea_qc(data)),
+                'cases': p.table(reviews), 'job': self.job}
+
+    def set_trochlea_qc(self, value):
+        """Which sulcus steps to show: 'cartilage', 'bone' or 'both' (saved with the decisions)."""
+        p = self._require()
+        with self.lock:
+            data = review_store.load(p.review_file)
+            review_store.set_trochlea_qc(data, value)
+            review_store.save(p.review_file, data)
+        return self.project_state()
 
     def start_over(self):
         """Remove every landmark decision (backed up first), so each scan
@@ -240,11 +251,12 @@ class App:
             if step == 'tt':
                 flag = self._flag(code, t)
                 reason = 'maybe out of view' if flag else None
-            elif step == 'sulcus':
-                a = _num(row.get('sulcus_angle_deg'))
-                lo, hi = SULCUS_USUAL_DEG
+            elif step in ('sulcus', 'bone'):
+                a = _num(row.get('sulcus_angle_deg' if step == 'sulcus' else 'sulcus_angle_bone_deg'))
+                lo, hi = SULCUS_USUAL_DEG if step == 'sulcus' else BONE_SULCUS_USUAL_DEG
                 reason = None if t or not self.rows else (
-                    'no automatic sulcus' if a is None else (f'unusual angle ({a:.0f}°)' if not lo <= a <= hi else None))
+                    f"no automatic {'bony ' if step == 'bone' else ''}sulcus" if a is None
+                    else (f'unusual angle ({a:.0f}°)' if not lo <= a <= hi else None))
                 flag = bool(reason)
             else:
                 k = _num(row.get('KRA_deg'))
@@ -257,6 +269,7 @@ class App:
                           'flag_out_of_view': flag, 'flag': flag, 'flag_reason': reason,
                           'tt_tg': _num(row.get('TT_TG_mm')), 'kra': _num(row.get('KRA_deg')),
                           'ttl': _num(row.get('TTL')), 'sulcus_angle': _num(row.get('sulcus_angle_deg')),
+                          'bone_sulcus_angle': _num(row.get('sulcus_angle_bone_deg')),
                           'tibia_mm': self.tibia_mm.get(code)})
         return {'pull': p.name, 'reviewer': self.reviewer, 'cases': cases, 'job': self.job, 'step': step,
                 'measured': bool(self.rows), 'loaded': len(self.cases)}
@@ -333,7 +346,7 @@ class App:
     def _make_thumbs(self, code, entry):
         """The prescreen crops of every step, showing the decisions made so far."""
         reviews = review_store.load(self.project.review_file)['cases'].get(code) or {}
-        return {step: THUMBS[step](entry, reviews.get(key)) for step, key in STEP_KEYS.items()}
+        return {step: THUMBS[step](entry, reviews.get(key), reviews) for step, key in STEP_KEYS.items()}
 
     def prefetch(self, codes, everything=False):
         """Load these cases in the background, in this order, so opening
@@ -371,12 +384,16 @@ class App:
             except Exception:
                 pass
 
-    def _refresh_thumb(self, code, step, review):
+    def _refresh_thumb(self, code, step):
         """Redraw one prescreen tile after its decision changed, so it shows
-        the reviewed landmark (review: that step's decision, or None)."""
-        t = THUMBS[step](self._case(code), review)
-        with self.lock:
-            self.thumbs[step][code] = t
+        the reviewed landmark. A cartilage sulcus decision also redraws the
+        bony tile: its automatic points follow the cartilage's slice."""
+        reviews = review_store.load(self.project.review_file)['cases'].get(code) or {}
+        e = self._case(code)
+        for s in (step, 'bone') if step == 'sulcus' else (step,):
+            t = THUMBS[s](e, reviews.get(STEP_KEYS[s]), reviews)
+            with self.lock:
+                self.thumbs[s][code] = t
 
     def case_info(self, code, step='tt'):
         e = self._case(code)
@@ -402,6 +419,9 @@ class App:
             'pbcl': _line(e['lm'].pbcl) if e['lm'].pbcl.get('theta') is not None else None,
             'flag_out_of_view': bool(tibia_mm is not None and tibia_mm < TT_WINDOW_MIN_TIBIA_MM and not t),
             'sulcus_review': now['sulcus'] if reviews.get('sulcus') else None,
+            'cart_sulcus': now['sulcus'],        # the cartilage points the values use, drawn on the bony step
+            'bone_auto': now['bone_auto'], 'bone_auto_note': now['bone_auto_note'],
+            'bone_review': now['bone'] if reviews.get('sulcus_bone') else None,
             'values': now['values'],
             'has_scan': e['scan'] is not None, 'scan_note': e['scan_note'],
             'axial_z_below': e['axial'].z_below if e['axial'] is not None else None, 'axial_note': e['axial_note'],
@@ -464,14 +484,16 @@ class App:
                     review_store.set_tuberosity(data, code, 'accepted', point=t['auto'], reviewer=self.reviewer,
                                                 note=note, auto_point=t['auto'], file_sha1=t['sha1'],
                                                 point_lps_mm=t['auto_lps'])
-                elif step == 'sulcus':
+                elif step in ('sulcus', 'bone'):
                     review_store.set_sulcus(data, code, 'accepted', t['auto'], auto=t['auto'], method='auto',
-                                            reviewer=self.reviewer, note=note, file_sha1=t['sha1'])
+                                            reviewer=self.reviewer, note=note, file_sha1=t['sha1'], key=key)
                 else:
                     review_store.set_tpcl(data, code, 'accepted', t['auto'], auto=t['auto'], method='auto',
                                           reviewer=self.reviewer, note=note, file_sha1=t['sha1'])
                 done.append(code)
             review_store.save(p.review_file, data)
+        for code in done if step == 'sulcus' else ():
+            self._refresh_thumb(code, 'sulcus')            # the bony tiles follow the cartilage's slice
         return {'accepted': done, 'skipped': skipped}
 
     def tpcl_preview(self, code, z):
@@ -497,25 +519,31 @@ class App:
                 raise ValueError("this slice doesn't show two posterior condyles -- click two points instead")
         with self.lock:
             data = review_store.load(self.project.review_file)
-            review = review_store.set_tpcl(data, code, 'accepted' if status == 'accepted' else 'replaced', line,
-                                           auto=auto if auto.get('theta') is not None else None, method=method,
-                                           reviewer=self.reviewer, note=note, file_sha1=e['sha1'])
+            review_store.set_tpcl(data, code, 'accepted' if status == 'accepted' else 'replaced', line,
+                                  auto=auto if auto.get('theta') is not None else None, method=method,
+                                  reviewer=self.reviewer, note=note, file_sha1=e['sha1'])
             review_store.save(self.project.review_file, data)
-        self._refresh_thumb(code, 'tpcl', review)
+        self._refresh_thumb(code, 'tpcl')
         return self.recompute(code)
 
-    def sulcus_preview(self, code, z):
+    def sulcus_preview(self, code, z, surface='cartilage'):
         """The sulcus and facet peaks the 'use this slice' button would give."""
         e = self._case(code)
-        r = _sulcus_at(e, z)
+        r = _sulcus_at(e, z, surface)
         return {'sulcus': _sulcus(r, e) if r else None}
 
-    def decide_sulcus(self, code, status, z=None, points=None, note=''):
+    def decide_sulcus(self, code, status, z=None, points=None, note='', surface='cartilage'):
+        """surface='bone': the bony sulcus step (decision key 'sulcus_bone')."""
         e = self._case(code)
-        auto = e['lm'].reference_slice_auto
+        bone = surface == 'bone'
+        if bone:
+            cart_review = (review_store.load(self.project.review_file)['cases'].get(code) or {}).get('sulcus')
+            auto = _bone_auto(e, cart_review) or {'z': None}
+        else:
+            auto = e['lm'].reference_slice_auto
         if status == 'accepted':
             if auto.get('z') is None:
-                raise ValueError('there is no automatic sulcus to accept')
+                raise ValueError(f"there is no automatic {'bony ' if bone else ''}sulcus to accept")
             ref, method = auto, 'auto'
         elif points:
             if len(points) != 3:
@@ -527,16 +555,17 @@ class App:
                 raise ValueError('the three points need to be side by side, not one above another')
             ref, method = {'z': int(z), 'sulcus': s, 'peak1': a, 'peak2': b}, 'points'
         else:
-            ref, method = _sulcus_at(e, z), 'slice'
+            ref, method = _sulcus_at(e, z, surface), 'slice'
             if ref is None:
                 raise ValueError("no sulcus found on this slice -- click the three points instead")
         with self.lock:
             data = review_store.load(self.project.review_file)
-            review = review_store.set_sulcus(data, code, 'accepted' if status == 'accepted' else 'replaced', ref,
-                                             auto=auto if auto.get('z') is not None else None, method=method,
-                                             reviewer=self.reviewer, note=note, file_sha1=e['sha1'])
+            review_store.set_sulcus(data, code, 'accepted' if status == 'accepted' else 'replaced', ref,
+                                    auto=auto if auto.get('z') is not None else None, method=method,
+                                    reviewer=self.reviewer, note=note, file_sha1=e['sha1'],
+                                    key='sulcus_bone' if bone else 'sulcus')
             review_store.save(self.project.review_file, data)
-        self._refresh_thumb(code, 'sulcus', review)
+        self._refresh_thumb(code, 'bone' if bone else 'sulcus')
         return self.recompute(code)
 
     def decide(self, code, status, point=None, note='', source=None):
@@ -554,12 +583,12 @@ class App:
         lps = index_to_lps(e['case']['header'], *point) if has_point else None
         with self.lock:
             data = review_store.load(self.project.review_file)
-            review = review_store.set_tuberosity(
+            review_store.set_tuberosity(
                 data, code, status, point=point if has_point else None, reviewer=self.reviewer, note=note,
                 auto_point=e['auto'].get('point'), file_sha1=e['sha1'], point_lps_mm=lps,
                 source=source if has_point else None)
             review_store.save(self.project.review_file, data)
-        self._refresh_thumb(code, 'tt', review)
+        self._refresh_thumb(code, 'tt')
         return self.recompute(code)
 
     def clear(self, code, step='tt'):
@@ -567,7 +596,7 @@ class App:
             data = review_store.load(self.project.review_file)
             review_store.clear_review(data, code, STEP_KEYS[step])
             review_store.save(self.project.review_file, data)
-        self._refresh_thumb(code, step, None)
+        self._refresh_thumb(code, step)
         return self.recompute(code)
 
     def recompute(self, code):
@@ -579,27 +608,38 @@ class App:
         lm = Landmarks(e['case'], e['side'], overrides)
         for k in ('pbcl', 'tpcl_auto', 'reference_slice_auto', 'tuberosity_auto'):
             lm.__dict__[k] = getattr(e['lm'], k)
+        bone_auto = _bone_auto(e, (overrides or {}).get('sulcus'))     # the app drops the full bone mask
+        lm.__dict__['reference_slice_bone_auto'] = bone_auto or {
+            'z': None, 'note': 'no bony groove on the cartilage sulcus slice'}
         values, notes = {}, {}
         for key, module in (('tt_tg', tt_tg), ('ttl', ttl), ('kra', kra), ('trochlea', trochlear_morphology)):
             r = module.compute(e['case'], lm)
             values.update(r['values'])
             notes[key] = r.get('note')
-        tp, ref = lm.tpcl, lm.reference_slice
+        tp, ref, bone = lm.tpcl, lm.reference_slice, lm.reference_slice_bone
         return {'values': {k: values.get(k) for k in ('TT_TG_mm', 'sTT_TG_mm', 'TTL', 'KRA_deg', 'sulcus_angle_deg',
-                                                      'LTI_deg', 'trochlear_depth_mm')},
+                                                      'LTI_deg', 'trochlear_depth_mm', 'TT_TG_bone_mm',
+                                                      'sulcus_angle_bone_deg', 'LTI_bone_deg', 'trochlear_depth_bone_mm')},
                 'notes': notes, 'review': (overrides or {}).get('tuberosity'),
                 'tpcl_review': (overrides or {}).get('tpcl'), 'sulcus_review': (overrides or {}).get('sulcus'),
+                'bone_review': (overrides or {}).get('sulcus_bone'),
                 'tpcl': _line(tp) if tp.get('theta') is not None else None,
-                'sulcus': _sulcus(ref, e) if ref.get('z') is not None else None}
+                'sulcus': _sulcus(ref, e) if ref.get('z') is not None else None,
+                'bone': _sulcus(bone, e) if bone.get('z') is not None else None,
+                'bone_auto': _sulcus(bone_auto, e) if bone_auto else None,
+                'bone_auto_note': None if bone_auto else (
+                    'no cartilage sulcus slice' if ref.get('z') is None else
+                    f"no bony groove found on the cartilage sulcus slice (z {ref['z']})")}
 
 
-STEP_KEYS = {'tt': 'tuberosity', 'tpcl': 'tpcl', 'sulcus': 'sulcus'}
+STEP_KEYS = {'tt': 'tuberosity', 'tpcl': 'tpcl', 'sulcus': 'sulcus', 'bone': 'sulcus_bone'}
 QC_NAME = re.compile(r'^[a-z_]+_grid(_p\d+)?\.png$')    # the QC grid pages the results page may show
 GRID_TITLES = {'overview': 'Segmentation overview', **{m.key: m.title for m in MEASURES}}
 LOADERS = max(2, min(6, (os.cpu_count() or 4) // 2))   # background threads loading scans for review
 MEASURE_JOBS = max(2, min(8, (os.cpu_count() or 4) // 2))   # processes measuring in parallel
 KRA_UNUSUAL_DEG = 15.0      # prescreen pre-selects scans whose KRA is beyond +-this
 SULCUS_USUAL_DEG = (140.0, 170.0)   # ... and whose sulcus angle is outside this (all pulls so far: 144-164)
+BONE_SULCUS_USUAL_DEG = (130.0, 165.0)   # the same for the bony sulcus angle (121 cleaned knees: 125-160)
 
 
 def _run_fingerprint(out):
@@ -644,8 +684,9 @@ def _trochlea_store(case):
     return z0, (case['bone'][:, :, z0:z1].astype(np.uint8) | (case['cartilage'][:, :, z0:z1].astype(np.uint8) << 1))
 
 
-def _sulcus_at(entry, z):
-    """Facet peaks + sulcus re-detected on slice z, or None."""
+def _sulcus_at(entry, z, surface='cartilage'):
+    """Facet peaks + sulcus re-detected on slice z (on the cartilage, or
+    the femur bone), or None."""
     if entry['troch'] is None or z is None:
         return None
     z0, arr = entry['troch']
@@ -653,17 +694,28 @@ def _sulcus_at(entry, z):
     if not z0 <= z < z0 + arr.shape[2]:
         return None
     sl = arr[:, :, z - z0]
-    return sulcus_on_slice((sl & 1).astype(bool), (sl & 2).astype(bool), entry['case']['spacing'][0], z)
+    return sulcus_on_slice((sl & 1).astype(bool), (sl & 2).astype(bool), entry['case']['spacing'][0], z,
+                           surface=surface)
 
 
-def _sulcus_thumb(entry, review=None, margin_mm=8.0):
+def _bone_auto(entry, cart_review=None):
+    """The automatic bony sulcus and facet peaks: found on the slice the
+    cartilage values use (the cartilage decision's slice, else the automatic
+    one), as Landmarks.reference_slice_bone_auto does. None if none."""
+    z = cart_review['z'] if cart_review else entry['lm'].reference_slice_auto.get('z')
+    return _sulcus_at(entry, z, 'bone')
+
+
+def _sulcus_thumb(entry, review=None, reviews=None, margin_mm=8.0, bone=False):
     """The axial slice the automatic sulcus was found on (or the reviewed
-    one, review: the case's sulcus decision), cropped to the front half of
-    the femur (the trochlea), with the sulcus and the two facet peaks."""
+    one, review: this step's decision), cropped to the front half of the
+    femur (the trochlea), with the sulcus and the two facet peaks. bone=True:
+    the bony sulcus, whose automatic points are on the cartilage decision's
+    slice (reviews: every decision of the case)."""
     case, scan, lm = entry['case'], entry['scan'], entry['lm']
     labels, (sx, sy, sz) = case['labels'], case['spacing']
-    ref = lm.reference_slice_auto
-    auto = _sulcus(ref, entry) if ref.get('z') is not None else None
+    ref = _bone_auto(entry, (reviews or {}).get('sulcus')) if bone else lm.reference_slice_auto
+    auto = _sulcus(ref, entry) if ref and ref.get('z') is not None else None
     shown = _sulcus({'z': review['z'], 'sulcus': review['sulcus'], 'peak1': review['peaks'][0],
                      'peak2': review['peaks'][1]}, entry) if review else auto
     troch = entry['troch']
@@ -685,7 +737,11 @@ def _sulcus_thumb(entry, review=None, margin_mm=8.0):
             'axial': crop, 'z': z, 'shown': shown, 'mine': _replaced(review)}
 
 
-def _tpcl_thumb(entry, review=None, margin_mm=10.0):
+def _bone_thumb(entry, review=None, reviews=None):
+    return _sulcus_thumb(entry, review, reviews, bone=True)
+
+
+def _tpcl_thumb(entry, review=None, reviews=None, margin_mm=10.0):
     """The axial tibia slice the automatic TPCL was taken from (or the
     reviewed line's, review: the case's TPCL decision), cropped to the
     tibia, with the line's two condyle points (for drawing the line)."""
@@ -713,7 +769,7 @@ def _tpcl_thumb(entry, review=None, margin_mm=10.0):
             'axial': crop, 'z': z, 'shown': line, 'mine': _replaced(review)}
 
 
-def _tuberosity_thumb(entry, review=None, half_mm=35.0, up_mm=55.0):
+def _tuberosity_thumb(entry, review=None, reviews=None, half_mm=35.0, up_mm=55.0):
     """Small crops around the automatic tuberosity point for the prescreen
     grid: the axial slice through it and the sagittal slice through it (that
     one reaching down to the bottom of the scan when it's close, so a tibia
@@ -777,7 +833,7 @@ def _coarsen(img, fx, fy):
     return np.rint(img[:a * fx, :b * fy].reshape(a, fx, b, fy).mean(axis=(1, 3))).astype(np.uint8)
 
 
-THUMBS = {'tt': _tuberosity_thumb, 'tpcl': _tpcl_thumb, 'sulcus': _sulcus_thumb}
+THUMBS = {'tt': _tuberosity_thumb, 'tpcl': _tpcl_thumb, 'sulcus': _sulcus_thumb, 'bone': _bone_thumb}
 
 
 def _cache_size(per_case_mb=60, share=0.25, floor=6, ceiling=300):
@@ -923,6 +979,10 @@ def make_handler(app):
                         return self._send(200, app.tpcl_preview(p[1], body.get('z')))
                     if len(p) == 3 and p[0] == 'case' and p[2] == 'sulcus_preview':
                         return self._send(200, app.sulcus_preview(p[1], body.get('z')))
+                    if len(p) == 3 and p[0] == 'case' and p[2] == 'bone_preview':
+                        return self._send(200, app.sulcus_preview(p[1], body.get('z'), 'bone'))
+                    if p == ['settings']:
+                        return self._send(200, app.set_trochlea_qc(body.get('trochlea_qc')))
                     if p == ['side']:
                         return self._send(200, app.set_side(body.get('case'), body.get('side')))
                     if p == ['start_over']:
@@ -930,9 +990,10 @@ def make_handler(app):
                     if p in (['measure'], ['rebuild']):
                         return self._send(200, app.start_measure())
                     if len(p) == 3 and p[0] == 'case' and p[2] == 'decide':
-                        if body.get('step') == 'sulcus':
-                            return self._send(200, app.decide_sulcus(p[1], body.get('status'), body.get('z'),
-                                                                     body.get('points'), body.get('note', '')))
+                        if body.get('step') in ('sulcus', 'bone'):
+                            return self._send(200, app.decide_sulcus(
+                                p[1], body.get('status'), body.get('z'), body.get('points'), body.get('note', ''),
+                                'bone' if body.get('step') == 'bone' else 'cartilage'))
                         if body.get('step') == 'tpcl':
                             return self._send(200, app.decide_tpcl(p[1], body.get('status'), body.get('z'),
                                                                    body.get('points'), body.get('note', '')))

@@ -7,9 +7,9 @@ Start it by double-clicking the downloaded app, or from the command line with
 `kneemeasure app` (see [command-line.md](command-line.md)). It starts a small web app on
 this computer and opens it in the browser. No data leaves the machine.
 
-The app has five steps, shown in order along the top: **Setup**, then the three landmarks a
-person should check (the tibial tuberosity, the tibial posterior condylar line (TPCL), and
-the trochlear sulcus), then **Results**.
+The steps run in order along the top: **Setup**, then the landmarks a person should check
+(the tibial tuberosity, the tibial posterior condylar line (TPCL), and the trochlear sulcus
+on the cartilage, the bone or both, as chosen on the setup page), then **Results**.
 
 - **Each landmark step** starts with a **prescreen** and goes on to a **review** of the scans
   picked there. Its link in the step bar shows how many scans still have no decision, or a
@@ -46,6 +46,19 @@ the trochlear sulcus), then **Results**.
   are kept in your user cache folder (`~/.cache/kneemeasure/` on Linux,
   `~/Library/Caches/kneemeasure/` on a Mac, `%LOCALAPPDATA%\kneemeasure\` on Windows), so
   reopening a folder is instant. Download what you need from the Results page.
+- **Trochlea check** (on the folder's card) chooses which sulcus steps follow the tibial
+  line; points you don't check stay automatic. Saved in the decisions file, so it travels
+  with the folder.
+
+  | Choice | Steps | What you check |
+  |---|---|---|
+  | **Cartilage sulcus** (default) | Cartilage sulcus | sulcus angle, LTI, trochlear depth, facet depths, facet lengths and asymmetry, TT-TG, sTT-TG, APTO |
+  | **Bony sulcus** | Bony sulcus | the bone versions (`_bone_` columns): sulcus angle, LTI, trochlear depth, facet depths, facet lengths and asymmetry, TT-TG, sTT-TG |
+  | **Both** | Cartilage sulcus, then Bony sulcus | both lists |
+
+  The automatic bony points are found on the cartilage sulcus's slice, so a cartilage
+  decision moves them too. TW, PTLTR and bump height find their own slices, so neither
+  step changes them.
 - **Start over** (on the folder's card, when there are decisions) removes every
   hand-checked landmark for the folder, so each scan goes back to its automatic landmarks.
   Knee sides are kept, and the decisions file is first copied to
@@ -153,6 +166,8 @@ The tibial posterior condylar line (TPCL) sets the rotation reference for **KRA*
 
 ## 5. Cartilage sulcus: prescreen and review
 
+Shown when the trochlea check is **Cartilage sulcus** or **Both**.
+
 The cartilage sulcus and the two cartilage facet peaks on the trochlear reference slice
 (the cartilage surface, not the bone under it). This is the first slice, from the top,
 whose cartilage groove is at least 2 mm deep. They set the **sulcus
@@ -178,7 +193,24 @@ is the trochlear groove point for **TT-TG**.
 - **Not covered:** bump height uses its own slice (the deepest groove), which this step
   doesn't change.
 
-## 6. Results
+## 6. Bony sulcus: prescreen and review
+
+Shown when the trochlea check is **Bony sulcus** or **Both**. The same screens and buttons
+as the cartilage sulcus, for the bony sulcus and the two bony facet peaks: the deepest point
+of the groove and the facet tops on the femur **bone**, under the cartilage. They set the
+`_bone_` columns ([measurements.md](measurements.md#bone-versions-of-the-trochlear-measurements)).
+
+- **Automatic points:** found with the same method on the bone, on the slice the cartilage
+  values use (your cartilage decision's slice, else the automatic one).
+- **Prescreen:** "Select flagged" picks the scans with no automatic bony sulcus, or a bony
+  sulcus angle outside 130–165°.
+- **Review:** **Accept**, **Use the bony sulcus on this slice** (any slice) or **Use my three
+  points**, as for the cartilage. The cartilage points are drawn in light grey on their
+  slice, for comparison. The bone values and bony TT-TG are recalculated on each decision.
+- **Storage:** decisions go in `kneemeasure_review.json` under `sulcus_bone`.
+  `measurements.csv` has a `Sulcus_bone_review` column (auto / accepted / replaced).
+
+## 7. Results
 
 - **Decisions:** how many scans have a decision for each landmark, and of which kind.
   Scans without one use the automatic landmark.

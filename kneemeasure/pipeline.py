@@ -114,6 +114,8 @@ def measure_case(path, knee_side=None, measure_keys=None, qc=True, landmarks=Tru
     out['values']['TPCL_review'] = tpcl_review['status'] if tpcl_review else 'auto'
     sulcus_review = (overrides or {}).get('sulcus')
     out['values']['Sulcus_review'] = sulcus_review['status'] if sulcus_review else 'auto'
+    bone_review = (overrides or {}).get('sulcus_bone')
+    out['values']['Sulcus_bone_review'] = bone_review['status'] if bone_review else 'auto'
     out['seconds'] = time.time() - t0
     return out
 

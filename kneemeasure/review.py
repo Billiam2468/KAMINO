@@ -10,6 +10,7 @@ line and the review app always give the same numbers.
 Format:
 
     {"version": 1,
+     "settings": {"trochlea_qc": "cartilage"},          # which sulcus steps the app shows: cartilage | bone | both
      "cases": {
        "N31XL": {
          "laterality": {"side": "L", "time": "..."},   # only if entered in the app
@@ -17,6 +18,7 @@ Format:
                   "medial_pt": [..], "lateral_pt": [..], "auto": {"z": 29, "theta": 1.1}, ...},
          "sulcus": {"status": "replaced", "method": "points", "z": 88, "sulcus": [x, y],
                     "peaks": [[x, y], [x, y]], "auto": {"z": 90, "sulcus": [x, y]}, ...},
+         "sulcus_bone": {...},            # the bony sulcus and facet peaks, in the same format as "sulcus"
          "tuberosity": {
            "status": "replaced",            # accepted | replaced | not_in_view | misaligned
            "point": [212.5, 98.25, 14],     # reoriented voxel index (x, y, z; x, y can be fractional when
@@ -126,10 +128,12 @@ def set_tpcl(data, case, status, line, auto=None, method='auto', reviewer='', no
 SULCUS_STATUSES = ('accepted', 'replaced')
 
 
-def set_sulcus(data, case, status, ref, auto=None, method='auto', reviewer='', note='', file_sha1=None):
+def set_sulcus(data, case, status, ref, auto=None, method='auto', reviewer='', note='', file_sha1=None,
+               key='sulcus'):
     """ref: {'z', 'sulcus', 'peak1', 'peak2'} -- the trochlear reference
     slice's sulcus and two facet peaks, pinned like the TPCL. method: auto,
-    slice (re-detected on a chosen slice) or points (three clicked points)."""
+    slice (re-detected on a chosen slice) or points (three clicked points).
+    key='sulcus_bone': the bony sulcus and facet peaks instead."""
     if status not in SULCUS_STATUSES:
         raise ValueError(f'status must be one of {SULCUS_STATUSES}')
     entry = {'status': status, 'method': method, 'z': int(ref['z']),
@@ -140,12 +144,12 @@ def set_sulcus(data, case, status, ref, auto=None, method='auto', reviewer='', n
         entry['auto'] = {'z': int(auto['z']), 'sulcus': [int(v) for v in auto['sulcus']]}
     if file_sha1:
         entry['file_sha1'] = file_sha1
-    data.setdefault('cases', {}).setdefault(case, {})['sulcus'] = entry
+    data.setdefault('cases', {}).setdefault(case, {})[key] = entry
     return entry
 
 
 def clear_review(data, case, key):
-    """Remove one landmark's decision ('tuberosity', 'tpcl' or 'sulcus')."""
+    """Remove one landmark's decision ('tuberosity', 'tpcl', 'sulcus' or 'sulcus_bone')."""
     c = data.get('cases', {}).get(case)
     if c:
         c.pop(key, None)
@@ -153,7 +157,21 @@ def clear_review(data, case, key):
             data['cases'].pop(case)
 
 
-LANDMARK_KEYS = ('tuberosity', 'tpcl', 'sulcus')
+LANDMARK_KEYS = ('tuberosity', 'tpcl', 'sulcus', 'sulcus_bone')
+
+TROCHLEA_QC = ('cartilage', 'bone', 'both')
+
+
+def trochlea_qc(data):
+    """Which sulcus steps the app shows: 'cartilage' (the default), 'bone' or 'both'."""
+    v = (data.get('settings') or {}).get('trochlea_qc')
+    return v if v in TROCHLEA_QC else 'cartilage'
+
+
+def set_trochlea_qc(data, value):
+    if value not in TROCHLEA_QC:
+        raise ValueError(f'trochlea_qc must be one of {TROCHLEA_QC}')
+    data.setdefault('settings', {})['trochlea_qc'] = value
 
 
 def start_over(path):

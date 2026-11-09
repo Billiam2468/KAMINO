@@ -20,7 +20,8 @@ With PBCL unit vector u_along and anterior-facing perpendicular u_anterior
     sTT-TG = STT_TG_SIGN * (v . u_anterior)    (negative = TT posterior to TG)
 
 Bone versions (TT_TG_bone_mm, sTT_TG_bone_mm): the same, with the groove
-at the BONY sulcus on the same reference slice (Landmarks.reference_slice_bone);
+at the BONY sulcus on the same reference slice, or the reviewer's bony
+sulcus (Landmarks.reference_slice_bone);
 the tuberosity is already a bone point.
 """
 import numpy as np

@@ -80,6 +80,10 @@
   nav.steps .st { font-size: 11px; font-weight: 400; color: var(--muted); margin-left: 4px; }
   nav.steps .st.done { color: var(--ok); }
   nav.steps .phase { font-size: 11px; font-weight: 400; margin-left: 4px; }
+  #trochQC { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 13px; }
+  #trochQC h3 { font-size: 14px; margin: 0 0 4px; }
+  #trochQC label { display: block; margin-top: 8px; cursor: pointer; }
+  #trochQC .checks { margin: 2px 0 0 24px; color: var(--muted); }
   .view { flex: 1; min-height: 0; }
   .view[hidden] { display: none !important; }
   #setupView, #resultsView { overflow-y: auto; padding: 24px; }
@@ -167,8 +171,9 @@
   <nav class="steps" id="steps"><a href="#setup" data-step="setup">1 &middot; Setup</a><span class="sep">&rsaquo;</span>
     <a href="#tt-prescreen" data-step="tt">2 &middot; Tuberosity<span class="phase"></span><span class="st"></span></a><span class="sep">&rsaquo;</span>
     <a href="#tpcl-prescreen" data-step="tpcl" title="Tibial posterior condylar line">3 &middot; Tibial line<span class="phase"></span><span class="st"></span></a><span class="sep">&rsaquo;</span>
-    <a href="#sulcus-prescreen" data-step="sulcus">4 &middot; Cartilage sulcus<span class="phase"></span><span class="st"></span></a><span class="sep">&rsaquo;</span>
-    <a href="#results" data-step="results">5 &middot; Results</a></nav>
+    <a href="#sulcus-prescreen" data-step="sulcus"><span class="num">4</span> &middot; Cartilage sulcus<span class="phase"></span><span class="st"></span></a><span class="sep">&rsaquo;</span>
+    <a href="#bone-prescreen" data-step="bone"><span class="num">5</span> &middot; Bony sulcus<span class="phase"></span><span class="st"></span></a><span class="sep">&rsaquo;</span>
+    <a href="#results" data-step="results"><span class="num">6</span> &middot; Results</a></nav>
   <span class="progress" id="progress"></span>
   <span class="spacer"></span>
   <span class="muted" id="loadMsg"></span>
@@ -195,6 +200,18 @@
   <div class="card" id="projectCard" hidden>
     <h2 id="projTitle"></h2>
     <dl class="kv" id="projInfo"></dl>
+    <div id="trochQC">
+      <h3>Trochlea check</h3>
+      <div class="muted">Which sulcus and facet points you check by hand, after the tibial line. Points you don't check stay automatic.</div>
+      <label><input type="radio" name="trochQC" value="cartilage"> <b>Cartilage sulcus</b> <span class="muted">(default)</span></label>
+      <div class="checks">Checks: sulcus angle, LTI, trochlear depth, medial and lateral facet depth, facet lengths and asymmetry, TT-TG, sTT-TG and APTO.</div>
+      <label><input type="radio" name="trochQC" value="bone"> <b>Bony sulcus</b></label>
+      <div class="checks">Checks the bone versions (the <code>_bone_</code> columns): sulcus angle, LTI, trochlear depth, facet depths, facet lengths and asymmetry, TT-TG and sTT-TG.</div>
+      <label><input type="radio" name="trochQC" value="both"> <b>Both</b> <span class="muted">(the most review time)</span></label>
+      <div class="checks">Checks both lists, cartilage first.</div>
+      <div class="muted" style="margin-top:8px">The automatic bony points are found on the cartilage sulcus's slice, so a cartilage decision moves them too.
+        Not affected by either: TW, PTLTR and bump height, which find their own slices.</div>
+    </div>
     <div id="sideAlert" style="margin-top:12px"></div>
     <div class="row" style="margin:14px 0">
       <button class="primary" id="go"></button>
@@ -325,15 +342,24 @@ function overlayOpacity(v, op) { return CARTILAGE.has(v) ? Math.min(1, op * CART
 const $ = id => document.getElementById(id);
 let S = {state: null, idx: 0, info: null, z: 0, mine: null, zoom: 1, slices: new Map(), sag: new Map(), busy: false,
          pts: [], preview: new Map()};
-let STEP = 'tt';      // 'tt' = tibial tuberosity, 'tpcl' = tibial posterior condylar line, 'sulcus' = trochlear sulcus
-const STEP_NAME = {tt: 'tuberosity', tpcl: 'tibial posterior line', sulcus: 'cartilage sulcus'};
-// tpcl and sulcus are "slice" steps: accept the automatic landmark, re-detect it on another slice, or click points
-const NPTS = {tpcl: 2, sulcus: 3};
-const THING = {tt: 'point', tpcl: 'line', sulcus: 'cartilage sulcus'};
+let STEP = 'tt';      // 'tt' = tibial tuberosity, 'tpcl' = tibial posterior condylar line, 'sulcus' = cartilage
+                      // sulcus, 'bone' = bony sulcus
+const STEP_NAME = {tt: 'tuberosity', tpcl: 'tibial posterior line', sulcus: 'cartilage sulcus', bone: 'bony sulcus'};
+// tpcl, sulcus and bone are "slice" steps: accept the automatic landmark, re-detect it on another slice, or click points
+const NPTS = {tpcl: 2, sulcus: 3, bone: 3};
+const THING = {tt: 'point', tpcl: 'line', sulcus: 'cartilage sulcus', bone: 'bony sulcus'};
 const STATUS_TEXT = {accepted: 'accepted', replaced: 'replaced', not_in_view: 'not in view', misaligned: "doesn't line up"};
-// the steps in order: each QC step goes prescreen -> review -> the next step; the last one leads to the results
-const NEXT = {tt: '#tpcl-prescreen', tpcl: '#sulcus-prescreen', sulcus: '#results'};
-const NEXT_NAME = {tt: 'the tibial line', tpcl: 'the cartilage sulcus', sulcus: 'the results'};
+function isTroch(step) { return step === 'sulcus' || step === 'bone'; }
+// the steps in order (the sulcus steps as chosen on the setup page): each goes prescreen -> review -> the next
+// step; the last one leads to the results
+function qcSteps() {
+  const t = (P.project && P.project.trochlea_qc) || 'cartilage';
+  return ['tt', 'tpcl', ...(t !== 'bone' ? ['sulcus'] : []), ...(t !== 'cartilage' ? ['bone'] : [])];
+}
+function nextStepOf(step) { const s = qcSteps(), i = s.indexOf(step); return i >= 0 ? s[i + 1] || null : null; }
+const STEP_THE = {tt: 'the tuberosity', tpcl: 'the tibial line', sulcus: 'the cartilage sulcus', bone: 'the bony sulcus'};
+function nextHash(step) { const n = nextStepOf(step); return n ? `#${n}-prescreen` : '#results'; }
+function nextName(step) { const n = nextStepOf(step); return n ? STEP_THE[n] : 'the results'; }
 // tuberosity step: S.src = 'axial' shows the axial series (see AxialDisplay) instead of the Dixon; its slices go
 // below the segmentation's slice 0, down to zlo()
 function hasAxial() { return STEP === 'tt' && S.info && S.info.axial_z_below !== null && S.info.axial_z_below !== undefined; }
@@ -350,7 +376,7 @@ function setSrc(src) {
 function runIndex(z) { const R = S.src === 'axial' && S.info.axial_runs; return R ? R.findIndex(([lo, hi]) => z >= lo && z <= hi) : -1; }
 function snapZ(z) { const i = runIndex(z); return i < 0 ? z : S.info.axial_runs[i][2]; }
 function sameSlice(a, b) { const i = runIndex(a); return i < 0 ? a === b : i === runIndex(b); }
-function autoOf(info) { return STEP === 'tpcl' ? info.tpcl_auto : info.sulcus_auto; }
+function autoOf(info) { return {tpcl: info.tpcl_auto, sulcus: info.sulcus_auto, bone: info.bone_auto}[STEP]; }
 function q(path) { return path + (path.includes('?') ? '&' : '?') + 'step=' + STEP; }
 
 async function api(path, body) {
@@ -389,7 +415,7 @@ async function loadState(keepIdx) {
 // The review's way on: one button to the next step, highlighted once every scan in the list has a decision.
 function renderNextStep() {
   const left = S.state.cases.filter(c => c.status === 'unreviewed').length, b = $('nextStep');
-  b.textContent = `Go on to ${NEXT_NAME[STEP]} →`;
+  b.textContent = `Go on to ${nextName(STEP)} →`;
   b.className = left ? '' : 'primary';
   $('nextStepNote').textContent = left
     ? `${left} scan(s) here still have no decision; they keep the automatic ${THING[STEP]}.`
@@ -670,7 +696,9 @@ async function draw() {
                      S.preview.set(v ? v.z : S.z, v); if (S.info && v && v.z === S.z) { renderInfo(); draw(); } })
         .catch(() => {});
     }
-    const mineV = rv && rv.status === 'replaced' ? (STEP === 'tpcl' ? rv : S.info.sulcus_review) : null;
+    const mineV = rv && rv.status === 'replaced' ? {tpcl: rv, sulcus: S.info.sulcus_review, bone: S.info.bone_review}[STEP] : null;
+    const cart = STEP === 'bone' ? S.info.cart_sulcus : null;       // the cartilage points, for comparison
+    if (cart && cart.z === S.z) draw1(cart, '#ececec', 'cartilage', true, 3);
     if (pv && !(rv && rv.z === S.z && rv.method === 'slice')) draw1(pv, '#29d3e6', 'this slice', true, 1);
     if (auto) draw1(auto, getVar('--auto'), auto.z === S.z ? 'auto' : `auto (from z ${auto.z})`, auto.z !== S.z, 0);
     if (mineV) draw1(mineV, getVar('--mine'), mineV.z === S.z ? 'yours' : `yours (z ${mineV.z})`, mineV.z !== S.z, 2);
@@ -681,7 +709,7 @@ async function draw() {
       for (const [px2, py2] of pts) { ctx.beginPath(); ctx.arc(px2, py2, 5 * dpr, 0, 2 * Math.PI); ctx.fill(); }
       ctx.beginPath();
       if (STEP === 'tpcl' && pts.length === 2) { ctx.moveTo(...pts[0]); ctx.lineTo(...pts[1]); }
-      if (STEP === 'sulcus' && pts.length === 3) {     // any click order: left to right, the middle one is the sulcus
+      if (isTroch(STEP) && pts.length === 3) {     // any click order: left to right, the middle one is the sulcus
         const v = pts.slice().sort((a, b) => a[0] - b[0]);
         const outer = S.info.side === 'R' ? ['lateral', 'medial'] : ['medial', 'lateral'];
         ctx.moveTo(...v[0]); ctx.lineTo(...v[1]); ctx.lineTo(...v[2]);
@@ -764,6 +792,8 @@ function renderInfo() {
   if (STEP === 'tt' && !i.auto_point) alerts.push(['warn', `No automatic point: ${i.auto_note || 'not found'}.`]);
   if (STEP === 'tpcl' && !i.tpcl_auto) alerts.push(['warn', `No automatic line: ${i.tpcl_auto_note || 'not found'}. Pick a slice or click two points.`]);
   if (STEP === 'sulcus' && !i.sulcus_auto) alerts.push(['warn', `No automatic cartilage sulcus: ${i.sulcus_auto_note || 'not found'}. Pick a slice or click three points.`]);
+  if (STEP === 'bone' && !i.bone_auto) alerts.push(['warn', `No automatic bony sulcus: ${i.bone_auto_note || 'not found'}. Pick a slice or click three points.`]);
+  if (STEP === 'bone') alerts.push(['info', 'The bony sulcus: the deepest point of the groove and the two facet peaks on the <b>bone</b> (green), not the cartilage. The cartilage points are drawn in grey on their slice, for comparison.']);
   const how = {auto: `automatic ${THING[STEP]}`, slice: `${THING[STEP]} on slice ${r && r.z}`, points: `${NPTS[STEP]} clicked points`};
   if (r) alerts.push(['info', `Decision: <b>${STATUS_TEXT[r.status] || r.status}</b>${r.source === 'axial' ? ' (marked on the axial scan)' : ''}${r.method ? ' (' + how[r.method] + ')' : ''}${r.reviewer ? ' by ' + r.reviewer : ''}, ${(r.time || '').replace('T', ' ')}`]);
   $('alerts').innerHTML = alerts.map(([k, t]) => `<div class="alert ${k}">${t}</div>`).join('');
@@ -778,16 +808,23 @@ function renderInfo() {
     $('acceptLine').firstElementChild.textContent = `Accept automatic ${THING[STEP]}`;
     $('useSlice').firstElementChild.textContent = `Use the ${THING[STEP]} on this slice`;
     $('usePoints').firstElementChild.textContent = `Use my ${n === 2 ? 'two' : 'three'} points`;
+    const surf = STEP === 'bone' ? 'bony' : 'cartilage';
     $('sliceHelp').innerHTML = STEP === 'tpcl'
       ? 'Scroll to a slice where both posterior condyles are clear: its line is previewed in cyan. Or click the medial and lateral condyle points yourself (<kbd>Esc</kbd> clears them).'
-      : 'Scroll to the slice you want: the cartilage sulcus found on it is previewed in cyan. Or click the two cartilage facet peaks and the deepest point of the cartilage groove yourself, in any order (<kbd>Esc</kbd> clears them).';
+      : `Scroll to the slice you want: the ${surf} sulcus found on it is previewed in cyan. Or click the two ${surf} facet peaks and the deepest point of the ${surf} groove yourself, in any order (<kbd>Esc</kbd> clears them).`;
     const here = STEP === 'tpcl' ? (pv ? `${fmt(pv.theta)}°` : (pv === null ? 'no two condyles here' : '…'))
-                                 : (pv ? `${fmt(pv.angle)}°` : (pv === null ? 'no cartilage sulcus found here' : '…'));
+                                 : (pv ? `${fmt(pv.angle)}°` : (pv === null ? `no ${surf} sulcus found here` : '…'));
     $('values').innerHTML = (STEP === 'tpcl' ? `
       <dt>KRA</dt><dd>${fmt(v.KRA_deg)}°</dd>
       <dt>TTL</dt><dd>${fmt(v.TTL, 2)}</dd>
       <dt>Automatic line</dt><dd>${auto ? `slice ${auto.z}, ${fmt(auto.theta)}°` : '—'}</dd>
-      <dt>Line on slice ${S.z}</dt><dd>${here}</dd>` : `
+      <dt>Line on slice ${S.z}</dt><dd>${here}</dd>` : STEP === 'bone' ? `
+      <dt>Sulcus angle (bone)</dt><dd>${fmt(v.sulcus_angle_bone_deg)}°</dd>
+      <dt>LTI (bone)</dt><dd>${fmt(v.LTI_bone_deg)}°</dd>
+      <dt>Trochlear depth (bone)</dt><dd>${fmt(v.trochlear_depth_bone_mm)} mm</dd>
+      <dt>TT-TG (bone)</dt><dd>${fmt(v.TT_TG_bone_mm)} mm</dd>
+      <dt>Automatic bony sulcus</dt><dd>${auto ? `slice ${auto.z}, ${fmt(auto.angle)}°` : '—'}</dd>
+      <dt>Bony sulcus on slice ${S.z}</dt><dd>${here}</dd>` : `
       <dt>Sulcus angle (cartilage)</dt><dd>${fmt(v.sulcus_angle_deg)}°</dd>
       <dt>LTI</dt><dd>${fmt(v.LTI_deg)}°</dd>
       <dt>Trochlear depth</dt><dd>${fmt(v.trochlear_depth_mm)} mm</dd>
@@ -823,14 +860,16 @@ async function decide(status) {
     const res = await api(`case/${encodeURIComponent(S.info.case)}/decide`, body);
     toast(STEP === 'tt' ? `${S.info.case}: ${status.replace(/_/g, ' ')} · TT-TG ${fmt(res.values.TT_TG_mm)} mm`
         : STEP === 'tpcl' ? `${S.info.case}: line ${status} · KRA ${fmt(res.values.KRA_deg)}°`
+        : STEP === 'bone' ? `${S.info.case}: bony sulcus ${status} · bony sulcus angle ${fmt(res.values.sulcus_angle_bone_deg)}°`
         : `${S.info.case}: cartilage sulcus ${status} · sulcus angle ${fmt(res.values.sulcus_angle_deg)}°`);
     await loadState(true);
     const todo = k => S.state.cases[k] && S.state.cases[k].status === 'unreviewed';
     let nextIdx = S.state.cases.findIndex((c, k) => k > S.idx && todo(k));
     if (nextIdx < 0) nextIdx = S.state.cases.findIndex((c, k) => todo(k));
     if (nextIdx >= 0) await openCase(nextIdx);
-    else { S.info.review = {tt: res.review, tpcl: res.tpcl_review, sulcus: res.sulcus_review}[STEP];
-           S.info.sulcus_review = res.sulcus; S.values = res.values; S.pts = [];
+    else { S.info.review = {tt: res.review, tpcl: res.tpcl_review, sulcus: res.sulcus_review, bone: res.bone_review}[STEP];
+           S.info.sulcus_review = res.sulcus; S.info.cart_sulcus = res.sulcus; S.info.bone_review = res.bone;
+           S.info.bone_auto = res.bone_auto; S.values = res.values; S.pts = [];
            if (STEP === 'tt' && status === 'accepted') { S.mine = S.info.auto_point.slice(); S.mineSrc = null; } renderInfo(); draw();
            toast(`${$('toast').textContent} · every scan here has a decision`); }
   } catch (e) { toast('Error: ' + e.message); }
@@ -927,7 +966,7 @@ $('clear').onclick = clearReview;
 $('acceptLine').onclick = () => decide('accepted');
 $('useSlice').onclick = () => { S.usePoints = false; decide('replaced'); };
 $('usePoints').onclick = () => { if (S.pts.length === NPTS[STEP]) { S.usePoints = true; S.z = S.pts.z; decide('replaced'); } };
-$('nextStep').onclick = () => { location.hash = NEXT[STEP]; };
+$('nextStep').onclick = () => { location.hash = nextHash(STEP); };
 S.segOn = true; S.segOpacity = 0.2;
 $('segOpacity').addEventListener('input', e => { S.segOpacity = e.target.value / 100; S.segOn = true; draw(); });
 window.addEventListener('resize', () => draw());
@@ -982,6 +1021,8 @@ function renderProject(job) {
     <dt>Knee sides</dt><dd>${p.n_cases - p.n_missing_side} of ${p.n_cases} known${p.sheet ? ` (also using ${esc(p.sheet)})` : ''}</dd>
     <dt>Decisions</dt><dd>${p.n_decisions ? `${p.n_decisions} hand-checked landmark(s), saved in ${esc(p.root)}` : 'none yet'}</dd>
     <dt>Results</dt><dd>kept by the app: download them on the Results page</dd>`;
+  document.querySelectorAll('input[name=trochQC]').forEach(r => { r.checked = r.value === (p.trochlea_qc || 'cartilage'); });
+  renderStepBar();
   $('startOver').hidden = !p.n_decisions;
   $('startOver').textContent = `Start over (remove ${p.n_decisions} decision${p.n_decisions === 1 ? '' : 's'})`;
   $('sideAlert').innerHTML = p.n_missing_side
@@ -1019,14 +1060,34 @@ function renderJob(job) {
     : running ? `${job.done} of ${job.total} measured${job.current ? ' · ' + job.current : ''}` : (job.message || '');
 }
 
+// The step bar shows the sulcus steps chosen on the setup page, numbered in order.
+function renderStepBar() {
+  const s = qcSteps();
+  let n = 4;
+  for (const k of ['sulcus', 'bone', 'results']) {
+    const a = document.querySelector(`#steps a[data-step="${k}"]`), show = k === 'results' || s.includes(k);
+    a.style.display = show ? '' : 'none';
+    if (a.nextElementSibling) a.nextElementSibling.style.display = show ? '' : 'none';
+    if (show) a.querySelector('.num').textContent = n++;
+  }
+}
+document.querySelectorAll('input[name=trochQC]').forEach(r => r.onchange = async () => {
+  try {
+    const j = await api('settings', {trochlea_qc: r.value});
+    P.project = j.project; P.cases = j.cases; renderProject(j.job); refreshSteps();
+    toast({cartilage: 'Checking the cartilage sulcus', bone: 'Checking the bony sulcus',
+           both: 'Checking the cartilage and the bony sulcus'}[r.value]);
+  } catch (e) { toast(e.message); }
+});
+
 $('startOver').onclick = async () => {
   const p = P.project;
   if (!confirm(`Remove all ${p.n_decisions} hand-checked landmark decisions for ${p.name}?\n\nEvery scan goes back to its ` +
-               'automatic tuberosity, tibial line and cartilage sulcus. Knee sides are kept. A backup copy of the ' +
+               'automatic tuberosity, tibial line and sulcus points. Knee sides are kept. A backup copy of the ' +
                'decisions file is kept next to it.')) return;
   try {
     const j = await api('start_over', {});
-    for (const step of ['tt', 'tpcl', 'sulcus'])              // forget the prescreen picks
+    for (const step of ['tt', 'tpcl', 'sulcus', 'bone'])      // forget the prescreen picks
       try { localStorage.removeItem('km_focus_' + step + '_' + p.root); } catch (e) {}
     S.state = null; S.info = null;
     P.project = j.project; P.cases = j.cases; renderProject(j.job); refreshSteps();
@@ -1131,7 +1192,8 @@ async function openPrescreen() {
   $('psDesc').textContent = {
     tt: 'Each tile: axial (left) and sagittal (right) through the automatic point, or through the point chosen in the review (green). Unselected scans get the automatic point accepted.',
     tpcl: 'Each tile: the tibial slice the automatic line was taken from, with the line, or the line chosen in the review (green). Unselected scans get the automatic line accepted.',
-    sulcus: 'Each tile: the femoral slice the automatic cartilage sulcus was found on (the first, from the top, whose cartilage groove is at least 2 mm deep), with the cartilage facet peaks and sulcus, or the ones chosen in the review (green). Unselected scans get the automatic cartilage sulcus accepted.'}[STEP];
+    sulcus: 'Each tile: the femoral slice the automatic cartilage sulcus was found on (the first, from the top, whose cartilage groove is at least 2 mm deep), with the cartilage facet peaks and sulcus, or the ones chosen in the review (green). Unselected scans get the automatic cartilage sulcus accepted.',
+    bone: "Each tile: the cartilage sulcus's slice, with the bony facet peaks and sulcus found on the femur bone there, or the ones chosen in the review (green). Unselected scans get the automatic bony sulcus accepted."}[STEP];
   // load every scan once in the background, so every tile appears
   api('prefetch', {cases: PS.cases.map(c => c.case), everything: true}).catch(() => {});
   pollThumbs();
@@ -1173,6 +1235,7 @@ function renderGrid() {
       const meta = STEP === 'tt'
         ? `TT-TG ${fmt(c.tt_tg)} mm · tibia ${fmt(t.tibia_length_mm, 0)} mm${t.scan_bottom_visible ? ' · reaches scan bottom' : ''}${t.on_axial ? ' · axial series' : ''}`
         : STEP === 'tpcl' ? `KRA ${fmt(c.kra)}° · TTL ${fmt(c.ttl, 2)}${t.shown ? ` · slice ${t.shown.z}` : ''}`
+        : STEP === 'bone' ? `bony sulcus angle ${fmt(t.shown ? t.shown.angle : null)}°${t.shown ? ` · slice ${t.shown.z}` : ''}`
         : `cartilage sulcus angle ${fmt(t.shown ? t.shown.angle : null)}° · TT-TG ${fmt(c.tt_tg)} mm${t.shown ? ` · slice ${t.shown.z}` : ''}`;
       d.innerHTML = `<span class="pick">review</span>${pics}
         <div class="cap"><b>${esc(c.case)}</b><span class="badge ${badgeClass(c)}">${badgeText(c, t)}</span></div>
@@ -1194,12 +1257,12 @@ function renderGrid() {
                  review.length && `review ${review.length} selected`].filter(Boolean).join(' · ');
   const what = parts.charAt(0).toUpperCase() + parts.slice(1);
   btn.textContent = waiting ? 'Waiting for all scans to load…'
-    : !parts ? `Go on to ${NEXT_NAME[STEP]} →`
+    : !parts ? `Go on to ${nextName(STEP)} →`
     : review.length ? `${what} →`
-    : `${what} and go on to ${NEXT_NAME[STEP]} →`;
+    : `${what} and go on to ${nextName(STEP)} →`;
   btn.title = `Unselected scans without a decision get the automatic ${THING[STEP]} accepted; scans that already ` +
               `have a decision keep it. Selected scans (decided or not) open in the review; with none selected, ` +
-              `this goes straight on to ${NEXT_NAME[STEP]}.`;
+              `this goes straight on to ${nextName(STEP)}.`;
 }
 
 // What the button will do: accept the automatic point for unselected scans that have no decision yet
@@ -1288,7 +1351,7 @@ $('psApply').onclick = async () => {
       toast(`Accepted the automatic ${THING[STEP]} for ${r.accepted.length} scan(s)`);
     }
     if (review.length) { setFocus(review); location.hash = `#${STEP}-review`; }
-    else location.hash = NEXT[STEP];                     // nothing to review: on to the next step
+    else location.hash = nextHash(STEP);                 // nothing to review: on to the next step
   } catch (e) { toast(e.message); }
 };
 
@@ -1306,7 +1369,7 @@ async function refreshSteps() {
 
 // ---------------------------------------------------------------- results
 const R = {data: null, grid: null, timer: null};
-const STEP_TITLE = {tt: 'Tuberosity', tpcl: 'Tibial line', sulcus: 'Cartilage sulcus'};
+const STEP_TITLE = {tt: 'Tuberosity', tpcl: 'Tibial line', sulcus: 'Cartilage sulcus', bone: 'Bony sulcus'};
 
 async function openResults() {
   try { R.data = await api('results'); } catch (e) { toast(e.message); return; }
@@ -1316,7 +1379,7 @@ async function openResults() {
 
 function renderResults() {
   const d = R.data, job = d.job, running = job.running;
-  $('resSteps').innerHTML = Object.entries(d.steps).map(([k, n]) => {
+  $('resSteps').innerHTML = Object.entries(d.steps).filter(([k]) => qcSteps().includes(k)).map(([k, n]) => {
     const parts = Object.entries(n.by_status).map(([st, c]) => `${c} ${STATUS_TEXT[st] || st}`), left = n.total - n.decided;
     return `<dt><a href="#${k}-prescreen">${STEP_TITLE[k]}</a></dt><dd>${n.decided} of ${n.total} decided` +
       (parts.length ? ` (${parts.join(', ')})` : '') + (left ? ` · ${left} keep the automatic ${THING[k]}` : '') + '</dd>';
@@ -1366,9 +1429,9 @@ $('resGridPick').onclick = e => { const b = e.target.closest('button[data-k]'); 
 
 // ---------------------------------------------------------------- views
 async function route() {
-  // #setup, #<step>-prescreen, #<step>-review (step: tt | tpcl | sulcus), #results; old #prescreen / #review mean the tuberosity
+  // #setup, #<step>-prescreen, #<step>-review (step: tt | tpcl | sulcus | bone), #results; old #prescreen / #review mean the tuberosity
   if (location.hash === '#prescreen' || location.hash === '#review') { location.replace('#tt-' + location.hash.slice(1)); return; }
-  const m = /^#(tt|tpcl|sulcus)-(prescreen|review)$/.exec(location.hash);
+  const m = /^#(tt|tpcl|sulcus|bone)-(prescreen|review)$/.exec(location.hash);
   const ok = P.project && P.project.measured;
   const view = ok && location.hash === '#results' ? 'results' : (m && ok ? m[2] : null);
   if (m && STEP !== m[1]) { S.info = null; S.state = null; }

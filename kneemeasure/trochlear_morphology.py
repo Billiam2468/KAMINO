@@ -23,7 +23,8 @@ smaller-x peak.
 
 Bone versions (*_bone_* columns): the same eight values from the bony
 sulcus and facet peaks (Landmarks.reference_slice_bone) -- the same
-reference slice, PBCL and hull algorithm, on the femur bone surface.
+reference slice, PBCL and hull algorithm, on the femur bone surface, or a
+reviewer's bony points (which may be on another slice).
 """
 import numpy as np
 
@@ -145,7 +146,7 @@ def compute(case, lm):
     else:
         b, b_med, b_lat = _surface_values(bone, lm.knee_side, theta, spacing)
         values.update({bone_column(k): v for k, v in b.items()})
-        details['bone'] = {'medial_pt': b_med, 'lateral_pt': b_lat, 'sulcus': bone['sulcus']}
+        details['bone'] = {'medial_pt': b_med, 'lateral_pt': b_lat, 'sulcus': bone['sulcus'], 'z': bone['z']}
     return {'values': {c: values[c] for c, _, _ in COLUMNS}, 'note': note, 'details': details}
 
 
@@ -164,15 +165,16 @@ def qc_payload(case, lm, result, margin=15):
     X, Y = np.meshgrid(np.arange(x0, x1), np.arange(y0, y1), indexing='ij')
     L, P = true_physical_lp(header, X, Y, z)
 
-    def to_true(pt):
-        tl, tp = true_physical_lp(header, pt[0], pt[1], z)
+    def to_true(pt, at=z):
+        tl, tp = true_physical_lp(header, pt[0], pt[1], at)
         return float(tl), float(tp)
 
     b = d.get('bone')
     return {'L': L, 'P': P, 'bone': bone_sl[x0:x1, y0:y1].copy(), 'cart': comp[x0:x1, y0:y1].copy(),
             'medial': to_true(d['medial_pt']), 'lateral': to_true(d['lateral_pt']),
             'sulcus': to_true(d['sulcus']),
-            'bone_points': {k: to_true(b[k]) for k in ('medial_pt', 'lateral_pt', 'sulcus')} if b else None,
+            'bone_points': {k: to_true(b[k], b['z']) for k in ('medial_pt', 'lateral_pt', 'sulcus')} if b else None,
+            'bone_z': b['z'] if b and b['z'] != z else None,      # a reviewed bony sulcus on another slice
             **result['values']}
 
 
@@ -210,7 +212,8 @@ def render_panel(ax, p, fontsize=8):
 
 def panel_title(p):
     asym = f"{p['facet_asymmetry_ratio']:.2f}" if p['facet_asymmetry_ratio'] is not None else 'n/a'
-    bone = (f"bone: LTI={p['LTI_bone_deg']:.1f}deg, sulcus={p['sulcus_angle_bone_deg']:.1f}deg, "
+    at = f" (z {p['bone_z']})" if p.get('bone_z') is not None else ''
+    bone = (f"bone{at}: LTI={p['LTI_bone_deg']:.1f}deg, sulcus={p['sulcus_angle_bone_deg']:.1f}deg, "
             f"depth={p['trochlear_depth_bone_mm']:.1f}mm" if p.get('LTI_bone_deg') is not None else 'bone: n/a')
     return (f"LTI={p['LTI_deg']:.1f}deg, sulcus={p['sulcus_angle_deg']:.1f}deg\n"
             f"med={p['medial_facet_depth_mm']:.1f}mm, lat={p['lateral_facet_depth_mm']:.1f}mm, asym={asym}\n{bone}")
@@ -225,7 +228,7 @@ def landmark_points(case, lm, result):
            ('reference slice lateral facet peak', (*d['lateral_pt'], z))]
     b = d.get('bone')
     if b:
-        pts += [('reference slice bony medial facet peak', (*b['medial_pt'], z)),
-                ('reference slice bony lateral facet peak', (*b['lateral_pt'], z)),
-                ('reference slice bony sulcus', (*b['sulcus'], z))]
+        pts += [('reference slice bony medial facet peak', (*b['medial_pt'], b['z'])),
+                ('reference slice bony lateral facet peak', (*b['lateral_pt'], b['z'])),
+                ('reference slice bony sulcus', (*b['sulcus'], b['z']))]
     return pts

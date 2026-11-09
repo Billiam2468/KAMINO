@@ -63,10 +63,23 @@ class Landmarks:
 
     @cached_property
     def reference_slice_bone(self):
-        """The bony sulcus and facet peaks, found automatically on the slice
+        """The bony sulcus and facet peaks: the reviewer's (a 'sulcus_bone'
+        decision, on any slice), else reference_slice_bone_auto."""
+        review = self.overrides.get('sulcus_bone')
+        if not review:
+            return dict(self.reference_slice_bone_auto, review='auto')
+        z = int(review['z'])
+        sulcus = tuple(float(v) for v in review['sulcus'])
+        return {'z': z, 'depth_mm': None, 'sulcus': sulcus,
+                'peak1': tuple(review['peaks'][0]), 'peak2': tuple(review['peaks'][1]),
+                'point': (sulcus[0], sulcus[1], z), 'hull_points': None, 'note': None, 'review': review['status']}
+
+    @cached_property
+    def reference_slice_bone_auto(self):
+        """The bony sulcus and facet peaks found automatically on the slice
         the cartilage values use (the same algorithm, on the femur bone):
         the reference slice, or the reviewer's slice when the cartilage
-        sulcus was reviewed. The review sets only the cartilage points."""
+        sulcus was reviewed."""
         ref = self.reference_slice
         if ref['z'] is None:
             return {'z': None, 'note': ref['note']}

@@ -227,6 +227,29 @@ class TestReview(unittest.TestCase):
         review.clear_review(data, 'A', 'sulcus')
         self.assertNotIn('A', data['cases'])
 
+    def test_bone_sulcus_store_and_setting(self):
+        from kneemeasure import review
+        from kneemeasure.landmarks import Landmarks
+        data = review.load(None)
+        self.assertEqual(review.trochlea_qc(data), 'cartilage')                   # the default
+        review.set_trochlea_qc(data, 'both')
+        self.assertEqual(review.trochlea_qc(data), 'both')
+        with self.assertRaises(ValueError):
+            review.set_trochlea_qc(data, 'neither')
+        bone = {'z': 6, 'sulcus': (31, 15), 'peak1': (11, 8), 'peak2': (51, 9)}
+        review.set_sulcus(data, 'A', 'replaced', bone, method='points', key='sulcus_bone')
+        self.assertNotIn('sulcus', data['cases']['A'])                              # the cartilage decision is separate
+        lm = Landmarks({}, 'L', review.overrides_for(data, 'A'))
+        self.assertEqual(lm.reference_slice_bone['point'], (31.0, 15.0, 6))         # any slice
+        self.assertEqual(lm.reference_slice_bone['review'], 'replaced')
+        with tempfile.TemporaryDirectory() as d:
+            f = os.path.join(d, review.REVIEW_FILE)
+            review.save(f, data)
+            self.assertEqual(review.start_over(f)[0], 1)                            # start over removes it too
+            back = review.load(f)
+            self.assertNotIn('A', back['cases'])
+            self.assertEqual(review.trochlea_qc(back), 'both')                     # the setting is kept
+
     def test_tpcl_from_points_sides(self):
         from kneemeasure.tibial_pcl import tpcl_from_points
         case = {'spacing': (1.0, 1.0, 1.0)}
@@ -525,6 +548,13 @@ class TestBoneTrochlea(unittest.TestCase):
                 self.assertAlmostEqual(v['sulcus_angle_bone_deg'], auto['sulcus_angle_bone_deg'])
                 self.assertAlmostEqual(v['TT_TG_bone_mm'], auto['TT_TG_bone_mm'])
                 self.assertEqual(notes, [None, None])
+        # reviewed bony points (any slice): the bone values use them, the cartilage ones don't change
+        bony = {'status': 'replaced', 'z': 2, 'sulcus': [100.0, 60.0], 'peaks': [[40.0, 28.0], [160.0, 28.0]]}
+        v, notes = self._run('L', {'sulcus_bone': bony})
+        self.assertAlmostEqual(v['sulcus_angle_bone_deg'], np.degrees(2 * np.arctan(60 / 32)), places=6)
+        self.assertAlmostEqual(v['TT_TG_bone_mm'], auto['TT_TG_bone_mm'], delta=self.SP)   # the groove's x is unchanged
+        self.assertAlmostEqual(v['sulcus_angle_deg'], auto['sulcus_angle_deg'])
+        self.assertEqual(notes, [None, None])
         # clicked cartilage points on another slice: the bone points move to that slice
         clicked = dict(sulcus, status='replaced', z=ref['z'] - 1, sulcus=[100.0, 70.0], peaks=[[52.0, 30.0], [148.0, 30.0]])
         v, _ = self._run('L', {'sulcus': clicked})

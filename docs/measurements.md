@@ -77,10 +77,11 @@ comparison.
 - **Peaks are hull corners on both surfaces**, not the most anterior point from the PBCL:
   on a tilted trochlea the low facet has no forward bump relative to the PBCL, and that
   rule put its "peak" next to the groove.
-- **Reviewed sulcus:** the review sets only the cartilage points. The bony points are
-  always found automatically, on the slice the cartilage values use (the reviewer's slice
-  when the sulcus was reviewed). The app can't yet show or correct the bony points; check
-  them in the QC grids.
+- **Reviewed points:** the cartilage review sets only the cartilage points. The bony points
+  are found automatically on the slice the cartilage values use (the reviewer's slice when
+  the cartilage sulcus was reviewed), unless they were checked in the app's **Bony sulcus**
+  step (chosen on the setup page), where they can be accepted, re-detected on any slice or
+  clicked. `Sulcus_bone_review` says which.
 - **Feasibility:** on 121 cleaned knees a bony groove was found on every reference slice,
   at least 2.8 mm deep (median 4.3 mm).
 - **Bone minus cartilage** (121 knees, six pulls, with their review decisions): sulcus

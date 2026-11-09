@@ -48,7 +48,7 @@ The file also has, per scan:
 
 - **Knee side.**
 - **Review columns:** whether each landmark was checked in the app (`TT_review`,
-  `TPCL_review`, `Sulcus_review`).
+  `TPCL_review`, `Sulcus_review`, `Sulcus_bone_review`).
 - **`notes`:** why a measurement failed, and segmentation warnings.
 
 Exact definitions, validation against manual measurements and limitations:
@@ -93,6 +93,8 @@ automatic landmark. Then **review** the ones you picked.
   pull, the scans folder is filled in for you.
 - The knee side is read from the files when the pipeline wrote it. Otherwise, click L or R
   once per scan.
+- **Trochlea check:** choose which sulcus points you'll check by hand: the cartilage
+  (default), the bone, or both. The page lists the measurements each one covers.
 - Click **Measure**. Later, only new or changed scans are measured again.
 
 ### 2. Tuberosity
@@ -116,10 +118,11 @@ The tibial posterior condylar line, used for KRA and TTL. Choose one:
 - **Use the line on this slice** (`Enter`): scroll to a slice where both condyles are clear.
 - **Click the two condyle points** (`P`).
 
-### 4. Cartilage sulcus
+### 4. Cartilage sulcus and / or bony sulcus
 
 The groove and the two facet peaks on the trochlear reference slice, used for the sulcus
-angle, LTI, trochlear depth, facet lengths and TT-TG. Choose one:
+angle, LTI, trochlear depth, facet lengths and TT-TG: on the cartilage, the bone (the
+`_bone_` columns), or each in turn, as chosen at setup. Choose one:
 
 - **Accept** (`A`).
 - **Use the sulcus on this slice** (`Enter`).

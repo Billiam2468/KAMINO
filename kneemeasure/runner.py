@@ -324,11 +324,11 @@ def run_cohort(inputs, out_dir, laterality=None, id_columns=None, side_column=No
 
     if extras:
         m_cols = (['case', 'knee_side', 'laterality_source'] + info_cols + carry + cols + extra_cols
-                  + ['TT_review', 'TPCL_review', 'Sulcus_review', 'tibia_length_mm']
+                  + ['TT_review', 'TPCL_review', 'Sulcus_review', 'Sulcus_bone_review', 'tibia_length_mm']
                   + [f'note_{m.key}' for m in measures] + ['segmentation_warnings', 'error', 'file', 'file_sha1'])
     else:
         m_cols = (['case', 'knee_side', 'laterality_source'] + info_cols + carry + cols + extra_cols
-                  + ['TT_review', 'TPCL_review', 'Sulcus_review', 'tibia_length_mm', 'notes', 'file'])
+                  + ['TT_review', 'TPCL_review', 'Sulcus_review', 'Sulcus_bone_review', 'tibia_length_mm', 'notes', 'file'])
     changes = _archive_and_diff(out_dir, m_rows, cols) if extras else []
     write_csv(os.path.join(out_dir, 'measurements.csv'), m_rows, m_cols)
     measured = [r for r in m_rows if not r['error']]
