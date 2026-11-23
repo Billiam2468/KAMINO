@@ -72,6 +72,7 @@ class App:
         self.rows, self.tibia_mm = {}, {}
         self.job = {'running': False, 'done': 0, 'total': 0, 'current': '', 'message': '', 'error': None}
         self.case_info_extra = None          # extra per-case result columns (e.g. a pull's segmentation_source)
+        self.stop_server = None              # set by serve(): stops this app (a newer version taking over)
         self.loading = {}                    # code -> Event while a case is being loaded
         self.thumbs = {s: {} for s in STEP_KEYS}  # step -> code -> prescreen crops (kept even if the case is evicted)
         self.max_cases = _cache_size()
@@ -981,6 +982,17 @@ def make_handler(app):
                         return self._send(200, app.sulcus_preview(p[1], body.get('z')))
                     if len(p) == 3 and p[0] == 'case' and p[2] == 'bone_preview':
                         return self._send(200, app.sulcus_preview(p[1], body.get('z'), 'bone'))
+                    if p == ['quit']:
+                        # a newer KAMINO taking over (desktop.py). JSON only: a plain form on another web page
+                        # can't send it, and the browser won't let a page's script send it to another site.
+                        if 'application/json' not in (self.headers.get('Content-Type') or ''):
+                            return self._send(400, {'error': 'quit needs a JSON request'})
+                        if app.job['running']:
+                            return self._send(409, {'error': 'measuring: not stopping'})
+                        self._send(200, {'stopping': True, 'version': __version__})
+                        if app.stop_server:
+                            threading.Thread(target=app.stop_server, daemon=True).start()
+                        return
                     if p == ['settings']:
                         return self._send(200, app.set_trochlea_qc(body.get('trochlea_qc')))
                     if p == ['side']:
@@ -1039,6 +1051,7 @@ def serve(project=None, segs_dir=None, scans_dir=None, port=8765, reviewer='', o
         if not any_port_if_busy:
             raise
         server = ThreadingHTTPServer(('127.0.0.1', 0), make_handler(app))
+    app.stop_server = server.shutdown
     url = f'http://127.0.0.1:{server.server_address[1]}/{start}'
     print(f'KAMINO {__version__} is running at {url}')
     print('Everything stays on this computer. Press Ctrl+C here to stop it.')

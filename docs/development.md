@@ -68,7 +68,7 @@ yet.
    git push origin main v0.2.0
    ```
 3. GitHub Actions (`.github/workflows/release.yml`) runs the tests, builds the Windows and
-   Mac apps, and attaches `KAMINO-Windows.zip` and `KAMINO-Mac.zip` to a release
+   Mac apps, and attaches `KAMINO-<version>-Windows.zip` and `KAMINO-<version>-Mac.zip` to a release
    for that tag (about 10 minutes; see the Actions tab). Add release notes on the release
    page. Users' apps show the update link from then on.
 

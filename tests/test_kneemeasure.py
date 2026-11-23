@@ -640,6 +640,33 @@ class TestTrochlearWidth(unittest.TestCase):
         self.assertIn('edge of the field of view', self._run(case, 'L')['note'])
 
 
+class TestDesktopHandover(unittest.TestCase):
+    """A newer KAMINO asks a running one to stop (desktop.py), through the
+    app's /api/quit."""
+    def test_quit_stops_the_running_app(self):
+        import socket, threading, urllib.request
+        from kneemeasure import __version__, desktop
+        from kneemeasure.webapp import serve
+        with socket.socket() as s:
+            s.bind(('127.0.0.1', 0))
+            port = s.getsockname()[1]
+        t = threading.Thread(target=serve, kwargs={'port': port, 'open_browser': False}, daemon=True)
+        t.start()
+        for _ in range(50):
+            if desktop._running_version(port):
+                break
+            threading.Event().wait(0.1)
+        self.assertEqual(desktop._running_version(port), __version__)
+        form = urllib.request.Request(f'http://127.0.0.1:{port}/api/quit', data=b'{}', method='POST',
+                                      headers={'Content-Type': 'text/plain'})
+        with self.assertRaises(urllib.error.HTTPError):          # a plain form post can't stop it
+            urllib.request.urlopen(form, timeout=2)
+        self.assertTrue(desktop._stop_running(port))
+        t.join(timeout=5)
+        self.assertFalse(t.is_alive())
+        self.assertIsNone(desktop._running_version(port))
+
+
 @unittest.skipUnless(os.path.isdir(DATA), f'segmentation data not found at {DATA}')
 class TestRegression(unittest.TestCase):
     def test_tpcl_at_slice_matches_method(self):

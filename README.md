@@ -58,7 +58,7 @@ Exact definitions, validation against manual measurements and limitations:
 
 1. **Download** the zip for your computer from the
    [latest release](https://github.com/Billiam2468/KAMINO/releases/latest):
-   `KAMINO-Windows.zip`, or `KAMINO-Mac.zip` (Apple Silicon, M1 or later).
+   `KAMINO-<version>-Windows.zip`, or `KAMINO-<version>-Mac.zip` (Apple Silicon, M1 or later).
 2. **Unzip it.** On Windows, right-click it and choose **Extract All**; KAMINO doesn't run
    from inside the zip.
 3. **Double-click KAMINO** (`KAMINO.exe` on Windows). Your browser opens on the setup page.
@@ -71,7 +71,8 @@ The app isn't signed with a paid certificate, so the first time:
   `xattr -dr com.apple.quarantine /Applications/KAMINO.app` in Terminal.
 
 To quit, close the browser tab; KAMINO stops by itself about 10 minutes later. When a new
-version is out, a link appears at the top of the page.
+version is out, a link appears at the top of the page. Opening a new version while an older
+one is still running stops the older one first.
 
 ### What you need
 
